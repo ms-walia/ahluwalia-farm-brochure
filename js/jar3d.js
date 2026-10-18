@@ -14,6 +14,19 @@ const canvas = document.getElementById('jar-canvas');
 const slots = section ? [...section.querySelectorAll('.journey-slot')] : [];
 const rows = slots.map((el) => el.closest('.journey-row'));
 const KEYS = rows.map((r) => r.dataset.variety);
+const introRow = document.getElementById('journey-intro');
+const introSlot = document.getElementById('jar-slot-intro');
+const combSlot = document.getElementById('comb-slot');
+const HAS_INTRO = !!(introRow && introSlot && combSlot);
+
+// Honey look per variety (blended while the jar spins between cards)
+const HONEY = {
+  'multiflora':      { c: '#7b3a0d', em: '#3a1503', ei: 0.5,  op: 0.93,  rough: 0.06, cc: 1.0, glow: 0.45, gc: [1.0, 0.55, 0.12], cloud: 0 },
+  'mustard':         { c: '#e6cc8e', em: '#6a5320', ei: 0.22, op: 0.99,  rough: 0.42, cc: 0.4, glow: 0.08, gc: [1.0, 0.92, 0.65], cloud: 1 },
+  'kashmiri-acacia': { c: '#e2a53a', em: '#a0560a', ei: 0.4,  op: 0.8,   rough: 0.04, cc: 1.0, glow: 0.65, gc: [1.0, 0.7, 0.2],   cloud: 0 },
+  'ajwain':          { c: '#b5650f', em: '#6e2c03', ei: 0.4,  op: 0.9,   rough: 0.06, cc: 1.0, glow: 0.5,  gc: [1.0, 0.58, 0.12], cloud: 0 },
+  'jamun':           { c: '#5a210a', em: '#2a0c02', ei: 0.5,  op: 0.95,  rough: 0.07, cc: 1.0, glow: 0.32, gc: [1.0, 0.45, 0.15], cloud: 0 },
+};
 
 const JAR_URL = 'assets/3d/Multiflora_1kg_jar.glb';
 const LABELS = {
@@ -166,10 +179,14 @@ async function init() {
     
   });
 
+  const glowU = { uGlowAmt: { value: 0.45 }, uGlowCol: { value: new THREE.Color(1, 0.55, 0.12) } };
   const honeyGlow = (sh) => {
-    sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+    sh.uniforms.uGlowAmt = glowU.uGlowAmt; sh.uniforms.uGlowCol = glowU.uGlowCol;
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uGlowAmt; uniform vec3 uGlowCol;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       float rim = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
-      totalEmissiveRadiance += vec3(1.0, 0.58, 0.12) * (0.03 + pow(rim, 2.0) * 0.5);`);
+      totalEmissiveRadiance += uGlowCol * (0.03 + pow(rim, 2.0) * uGlowAmt);`);
   };
   // ---- flowing honey surface: shared wave + meniscus height field (surface-local metres) ----
   const SURF_HALF = HONEY_HALF + GLASS_WALL;
@@ -239,6 +256,8 @@ async function init() {
 
   let labelMat = null;
   let capMesh = null;
+  let capLive = null;
+  const capBase = new THREE.Vector3();
   jar.traverse((o) => {
     if (!o.isMesh) return;
     const m = o.material;
@@ -323,6 +342,8 @@ async function init() {
     lathe.quaternion.copy(capMesh.quaternion);
     lathe.position.y += 0;                  // lathe profile already in the cap's local units
     capMesh.parent.add(lathe);
+    capLive = lathe;
+    capBase.copy(lathe.position);
     capMesh.visible = false;
     void H;
   }
@@ -424,6 +445,83 @@ async function init() {
 
   section.classList.add('is-3d');
 
+  // per-card honey look
+  const HV = KEYS.map((k) => {
+    const h = HONEY[k] || HONEY.ajwain;
+    return { ...h, c: new THREE.Color(h.c), em: new THREE.Color(h.em), gcol: new THREE.Color(...h.gc) };
+  });
+
+  // ---------- honeycomb (intro) ----------
+  const COMB_H = 0.075;
+  const comb = new THREE.Group();
+  const combTip = new THREE.Object3D();
+  const tmpV1 = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
+  let landed = false;
+  {
+    // hexagon cell texture (tiles seamlessly) + matching bump map
+    const R = 20, W = Math.sqrt(3) * R;
+    const cw = Math.round(W * 12), ch = R * 3 * 6;
+    const mk = () => { const c = document.createElement('canvas'); c.width = cw; c.height = ch; return c; };
+    const col = mk(), bmp = mk();
+    const g = col.getContext('2d'), b = bmp.getContext('2d');
+    g.fillStyle = '#8a4a06'; g.fillRect(0, 0, cw, ch);
+    b.fillStyle = '#ffffff'; b.fillRect(0, 0, cw, ch);
+    const hex = (ctx, cx, cy, rr) => {
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const a = Math.PI / 180 * (60 * k - 90);
+        ctx[k ? 'lineTo' : 'moveTo'](cx + rr * Math.cos(a), cy + rr * Math.sin(a));
+      }
+      ctx.closePath();
+    };
+    for (let row = -1; row <= ch / (1.5 * R) + 1; row++) {
+      for (let cI = -1; cI <= cw / W + 1; cI++) {
+        const cx = cI * W + (row % 2 ? W / 2 : 0), cy = row * 1.5 * R;
+        const gr = g.createRadialGradient(cx - R * 0.2, cy - R * 0.25, 1, cx, cy, R);
+        gr.addColorStop(0, '#ffe08a'); gr.addColorStop(0.45, '#f0a92a'); gr.addColorStop(1, '#b8650a');
+        g.fillStyle = gr; hex(g, cx, cy, R - 2.6); g.fill();
+        g.fillStyle = 'rgba(255,255,255,0.45)';
+        g.beginPath(); g.arc(cx - R * 0.32, cy - R * 0.38, R * 0.14, 0, Math.PI * 2); g.fill();
+        const gb = b.createRadialGradient(cx, cy, 1, cx, cy, R);
+        gb.addColorStop(0, '#3a3a3a'); gb.addColorStop(1, '#9a9a9a');
+        b.fillStyle = gb; hex(b, cx, cy, R - 2.6); b.fill();
+      }
+    }
+    const tCol = new THREE.CanvasTexture(col), tBmp = new THREE.CanvasTexture(bmp);
+    tCol.colorSpace = THREE.SRGBColorSpace;
+    for (const t of [tCol, tBmp]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(0.75, 0.5); }
+    const combMat = new THREE.MeshPhysicalMaterial({
+      map: tCol, bumpMap: tBmp, bumpScale: 4, roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.06,
+      emissive: new THREE.Color('#ffb340'), emissiveMap: tCol, emissiveIntensity: 0.28, envMapIntensity: 1.1,
+    });
+    const body = new THREE.Group();
+    const block = new THREE.Mesh(new THREE.BoxGeometry(0.11, COMB_H * 0.8, 0.05), combMat);
+    body.add(block);
+    // honey pooling and hanging off the bottom edge
+    const dripMat = new THREE.MeshPhysicalMaterial({
+      color: '#c26a10', emissive: '#6a2a04', emissiveIntensity: 0.5, roughness: 0.04, clearcoat: 1, transparent: true, opacity: 0.94,
+    });
+    const sph = new THREE.SphereGeometry(1, 20, 14);
+    [[-0.035, 0.0035, 1.5], [0.03, 0.003, 1.3], [0.0, 0.0045, 1.9]].forEach(([x, rr, st]) => {
+      const dm = new THREE.Mesh(sph, dripMat);
+      dm.scale.set(rr, rr * st, rr);
+      dm.position.set(x, -COMB_H * 0.4 - rr * st * 0.55, 0.022);
+      body.add(dm);
+    });
+    combTip.position.set(0, -COMB_H * 0.4 - 0.0045 * 1.9 * 1.1, 0.022);
+    body.add(combTip);
+    body.rotation.set(0.28, -0.38, -0.06);
+    comb.add(body);
+    comb.visible = false;
+    scene.add(comb);
+  }
+  const drop = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 18), new THREE.MeshPhysicalMaterial({
+    color: '#c26a10', emissive: '#6a2a04', emissiveIntensity: 0.5, roughness: 0.04, clearcoat: 1, transparent: true, opacity: 0.94,
+  }));
+  drop.visible = false;
+  drop.renderOrder = 2;
+  scene.add(drop);
+
   // ---------- layout helpers ----------
   let vw = window.innerWidth;
   let vh = window.innerHeight;
@@ -452,16 +550,24 @@ async function init() {
 
   // Scroll progress P: 0 when the first card fills the screen, 1 for the second, … N-1 for the last
   const N = slots.length;
+  // (with the intro card in front, P runs from -1 = intro to N-1)
+  const allRows = HAS_INTRO ? [introRow, ...rows] : rows;
+  const P0 = HAS_INTRO ? -1 : 0;
   function rawProgress() {
-    const tops = rows.map((r) => r.getBoundingClientRect().top);
-    if (tops[0] >= 0) return -tops[0] / Math.max(1, tops[1] - tops[0]);
-    for (let i = 0; i < N - 1; i++) {
-      if (tops[i + 1] > 0) return i + -tops[i] / Math.max(1, tops[i + 1] - tops[i]);
+    const tops = allRows.map((r) => r.getBoundingClientRect().top);
+    const M = tops.length;
+    let q;
+    if (tops[0] >= 0) q = -tops[0] / Math.max(1, tops[1] - tops[0]);
+    else {
+      q = M - 1 + -tops[M - 1] / Math.max(1, tops[M - 1] - tops[M - 2]);
+      for (let i = 0; i < M - 1; i++) {
+        if (tops[i + 1] > 0) { q = i + -tops[i] / Math.max(1, tops[i + 1] - tops[i]); break; }
+      }
     }
-    return N - 1 + -tops[N - 1] / Math.max(1, tops[N - 1] - tops[N - 2]);
+    return q + P0;
   }
   function targetProgress() {
-    return Math.min(N - 1, Math.max(0, rawProgress()));
+    return Math.min(N - 1, Math.max(P0, rawProgress()));
   }
 
   let progress = targetProgress();
@@ -513,11 +619,11 @@ async function init() {
   function maybeSnap() {
     if (touching || snapping || SMOOTH === 1) return;   // ?nosmooth (screenshots): no assist
     const p = rawProgress();
-    if (p <= 0.003 || p >= N - 1.003) return;   // outside the cards
+    if (p <= P0 + 0.003 || p >= N - 1.003) return;   // outside the cards
     const f = p - Math.floor(p);
     if (f <= 0.003 || f >= 0.997) return;       // already resting on a card
     const next = dir > 0 ? (f > 0.08 ? Math.ceil(p) : Math.floor(p)) : (f < 0.92 ? Math.floor(p) : Math.ceil(p));
-    const row = rows[next];
+    const row = next < 0 ? introRow : rows[next];
     snapping = true;
     window.scrollTo({ top: row.getBoundingClientRect().top + window.scrollY, behavior: 'smooth' });
     clearTimeout(snapEnd);
@@ -543,28 +649,33 @@ async function init() {
     progress += (target - progress) * SMOOTH;  // gentle smoothing
     if (Math.abs(target - progress) < 0.0005) progress = target;
 
-    const seg = Math.min(N - 2, Math.floor(progress));
-    const e = ease(progress - seg);
-    const A = slotInfo(slots[seg]);
-    const B = slotInfo(slots[seg + 1]);
+    const inIntro = HAS_INTRO && progress < 0;
+    const tI = inIntro ? progress + 1 : 1;    // 0 = intro card, 1 = first variety card
+    const seg = inIntro ? 0 : Math.min(N - 2, Math.floor(progress));
+    const e = inIntro ? 0 : ease(progress - seg);
+    const A = slotInfo(inIntro ? introSlot : slots[seg]);
+    const B = slotInfo(inIntro ? slots[0] : slots[seg + 1]);
+    const m = inIntro ? ease(tI) : e;
 
     // Screen position: blend between the two live slot centres along an S-curve
-    const sx = A.x + (B.x - A.x) * e;
-    const sy = A.y + (B.y - A.y) * e;
-    const arc = Math.sin(Math.PI * e);       // 0 → 1 → 0
+    const sx = A.x + (B.x - A.x) * m;
+    const sy = A.y + (B.y - A.y) * m;
+    const arc = inIntro ? 0 : Math.sin(Math.PI * e);       // 0 → 1 → 0
     const u = unitsPerPx();
     // phones: no swing toward the camera, so the jar keeps its size the whole way
     mover.position.set((sx - vw / 2) * u, -(sy - vh / 2) * u, arc * (vw < 768 ? 0 : 1.2));
 
     // Size follows the slot height, with a small lift in the middle of the journey
-    const slotH = A.h + (B.h - A.h) * e;
+    const slotH = A.h + (B.h - A.h) * m;
     const s = slotH * 0.86 * u * baseScale;
     pivot.scale.setScalar(s);
     pivot.rotation.x = 0.08 + arc * 0.06;
     pivot.rotation.z = -arc * 0.12 * (B.x < A.x ? 1 : -1);
 
     // Resting on a card, or travelling between them
-    if (e <= 0.0001) atCard = seg;
+    if (inIntro) {
+      if (atCard !== -1) { user[0] = 0; userV = 0; dragging = false; atCard = -1; }
+    } else if (e <= 0.0001) atCard = seg;
     else if (e >= 0.9999) atCard = seg + 1;
     else if (atCard !== -1) {
       // leaving a card: the jar sets off from wherever the visitor left it,
@@ -639,6 +750,73 @@ async function init() {
       bubbles.setMatrixAt(i, tmpM);
     }
     bubbles.instanceMatrix.needsUpdate = true;
+
+    // ---- honey colour of the variety (blends mid-spin, mostly while the back faces you) ----
+    {
+      const h0 = HV[inIntro ? 0 : seg], h1 = HV[inIntro ? 0 : seg + 1];
+      const w = inIntro ? 0 : THREE.MathUtils.smoothstep(e, 0.3, 0.7);
+      for (const mt of [honeyMat, surfMat]) {
+        mt.color.copy(h0.c).lerp(h1.c, w);
+        mt.emissive.copy(h0.em).lerp(h1.em, w);
+        mt.emissiveIntensity = h0.ei + (h1.ei - h0.ei) * w;
+        mt.opacity = h0.op + (h1.op - h0.op) * w;
+        mt.roughness = h0.rough + (h1.rough - h0.rough) * w;
+        mt.clearcoat = h0.cc + (h1.cc - h0.cc) * w;
+      }
+      glowU.uGlowAmt.value = h0.glow + (h1.glow - h0.glow) * w;
+      glowU.uGlowCol.value.copy(h0.gcol).lerp(h1.gcol, w);
+      const cloud = h0.cloud + (h1.cloud - h0.cloud) * w;
+      bubbles.visible = cloud < 0.5;
+      shimmerMat.uniforms.uAmt.value *= 1 - 0.75 * cloud;
+    }
+
+    // ---- intro: lid screws on as you scroll; drop falls from the honeycomb into the jar ----
+    if (capLive) {
+      const c = HAS_INTRO ? THREE.MathUtils.smoothstep(tI, 0.42, 0.88) : 1;
+      const k1 = ease(clamp01(c / 0.45)), k2 = clamp01((c - 0.45) / 0.55);
+      capLive.position.set(capBase.x + 0.088 * (1 - k1), capBase.y + 0.018 * (1 - k2) - 0.012 * (1 - k1), capBase.z + 0.01 * (1 - k1));
+      capLive.rotation.set(0, -(1 - k2) * TAU * 1.25, -0.35 * (1 - k1));
+    }
+    if (HAS_INTRO) {
+      const cr = combSlot.getBoundingClientRect();
+      const showComb = cr.bottom > -40 && cr.top < vh;
+      comb.visible = showComb;
+      if (showComb) {
+        comb.position.set((cr.left + cr.width / 2 - vw / 2) * u, -(cr.top + cr.height / 2 - vh / 2) * u, 0);
+        comb.scale.setScalar((cr.height * u) / COMB_H);
+        comb.updateMatrixWorld(true);
+      }
+      const d = clamp01((tI - 0.04) / 0.36);
+      const r = s * 0.0042;
+      const tip = combTip.getWorldPosition(tmpV1);
+      drop.visible = false;
+      if (inIntro && showComb) {
+        if (dir >= 0) {
+          if (d > 0.01 && d < 0.35) {
+            const g = d / 0.35;
+            drop.visible = true;
+            drop.scale.set(r * g, r * g * (1 + 0.6 * g), r * g);
+            drop.position.copy(tip).y -= r * g * 1.1;
+          } else if (d >= 0.35 && d < 1) {
+            const f = (d - 0.35) / 0.65;
+            const mouth = jar.localToWorld(tmpV2.set(0, FILL_Y, 0));
+            drop.visible = true;
+            drop.scale.set(r * 0.9, r * 1.4, r * 0.9);
+            drop.position.copy(tip).lerp(mouth, f * f);
+          }
+          if (d >= 1 && !landed) { landed = true; tiltV.x += 1.4; tiltV.y += 0.6; }
+        } else {
+          // scrolling back: a fresh drop gathers at the tip, ready to fall again
+          const g = clamp01((1 - d) / 0.7);
+          if (g > 0.02) {
+            drop.visible = true;
+            drop.scale.set(r * g, r * g * (1 + 0.6 * g), r * g);
+            drop.position.copy(tip).y -= r * g * 1.1;
+          }
+        }
+        if (d < 0.98) landed = false;
+      }
+    }
 
     renderer.render(scene, camera);
 

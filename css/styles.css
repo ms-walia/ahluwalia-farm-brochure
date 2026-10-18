@@ -1577,3 +1577,27 @@ box-shadow: var(--shadow-sm);
   color: rgba(250, 248, 242, 0.55);
   margin-bottom: 0.6rem;
 }
+
+/* Intro card: honeycomb drips into the open Multiflora jar, lid screws on as you scroll */
+.journey-intro__title {
+  font-family: var(--font-serif);
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+  font-weight: 600;
+  line-height: 1.05;
+  color: var(--cream);
+  margin-bottom: 1rem;
+}
+.journey-intro__stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.journey-comb { width: 100%; height: 20vh; }
+.journey-intro__jar { width: 100%; height: min(52vh, 470px); }
+@media (max-width: 768px) {
+  .jar-journey .journey-intro .journey-intro__stage { order: 1; }
+  .journey-comb { height: 13vh; height: 13svh; }
+  .journey-intro__jar { height: 34vh; height: 34svh; }
+  .journey-intro__title { font-size: 2.2rem; }
+}
