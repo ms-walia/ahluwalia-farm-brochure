@@ -1427,3 +1427,55 @@ box-shadow: var(--shadow-sm);
     height: 35vh;
   }
 }
+
+/* Field backgrounds: wildflower meadow (Multiflora) fading into mustard field (Mustard) */
+.jar-journey__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  pointer-events: none;
+}
+
+.jar-journey__bg--a {
+  background-image:
+    linear-gradient(rgba(18, 14, 6, 0.58), rgba(18, 14, 6, 0.66)),
+    url("https://images.unsplash.com/photo-1777657023147-b494a91c2a4c?fm=jpg&q=60&w=2000&auto=format&fit=crop");
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 42%, transparent 58%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 42%, transparent 58%);
+}
+
+.jar-journey__bg--b {
+  background-image:
+    linear-gradient(rgba(18, 14, 6, 0.6), rgba(18, 14, 6, 0.62)),
+    url("https://images.unsplash.com/photo-1674996783746-bf987bde0215?fm=jpg&q=60&w=2000&auto=format&fit=crop");
+  -webkit-mask-image: linear-gradient(to bottom, transparent 42%, #000 58%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 42%, #000 58%, #000 100%);
+}
+
+.jar-journey > .container {
+  position: relative;
+  z-index: 1;
+}
+
+/* light text on the darkened fields */
+.jar-journey .section-title,
+.jar-journey .journey-row__text h3 { color: var(--cream); }
+.jar-journey .section-desc,
+.jar-journey .journey-row__text p { color: rgba(250, 248, 242, 0.85); }
+.jar-journey .section-label,
+.jar-journey .journey-row__kicker { color: var(--gold-light); }
+.jar-journey .journey-row__facts li {
+  background: rgba(250, 248, 242, 0.14);
+  color: var(--gold-light);
+}
+.jar-journey .journey-gap__line { color: rgba(232, 197, 71, 0.8); }
+
+.jar-journey__credit {
+  margin-top: 2.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: rgba(250, 248, 242, 0.55);
+}
+.jar-journey__credit a { color: rgba(250, 248, 242, 0.75); text-decoration: underline; }
