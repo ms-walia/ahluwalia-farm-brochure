@@ -128,31 +128,52 @@ async function init() {
   // Translucent golden honey (light passes through, like the real jar)
   const honeyMat = new THREE.MeshPhysicalMaterial({
     name: 'HoneyLive',
-    color: new THREE.Color('#e29a2e'),
-    transmission: 0.9,
-    thickness: 0.08,
-    ior: 1.49,
-    roughness: 0.05,
-    attenuationColor: new THREE.Color('#9a440a'),
-    attenuationDistance: 1.0,
-    clearcoat: 0.3,
+    // No transmission: the canvas is transparent, so refraction would only see black and turn the
+    // honey brown. Instead: amber body, a little see-through, glowing gold where the light passes
+    // through thin edges, deeper in the middle.
+    color: new THREE.Color('#a85a0c'),
+    emissive: new THREE.Color('#6e2c03'),
+    emissiveIntensity: 0.4,
+    transparent: true,
+    opacity: 0.9,
+    roughness: 0.06,
+    ior: 1.5,
+    specularIntensity: 1,
+    clearcoat: 1,
+    clearcoatRoughness: 0.03,
+    envMapIntensity: 0.9,
     clippingPlanes: [honeyPlane],
   });
+
+  const honeyGlow = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      float rim = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
+      totalEmissiveRadiance += vec3(1.0, 0.58, 0.12) * (0.03 + pow(rim, 2.0) * 0.5);`);
+  };
+  honeyMat.onBeforeCompile = honeyGlow;
 
   // Glossy clear glass
   const glassMat = new THREE.MeshPhysicalMaterial({
     name: 'GlassLive',
     color: 0xffffff,
     transparent: true,
-    opacity: 0.2,
-    roughness: 0.2,               // soft satin sheen, like moulded glass
+    opacity: 0.05,                // nearly invisible face-on…
+    roughness: 0.03,              // glossy
     metalness: 0,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.18,
-    envMapIntensity: 1.25,
+    clearcoat: 1,
+    clearcoatRoughness: 0.02,
+    envMapIntensity: 1.9,
     side: THREE.DoubleSide,       // near and far wall, each a single thin layer
     depthWrite: false,
   });
+  // …brighter at the edges and wherever a highlight lands, like real glass
+  glassMat.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `
+      float fr = pow(1.0 - abs(dot(normalize(geometryNormal), normalize(geometryViewDir))), 3.0);
+      vec3 sp = reflectedLight.directSpecular + reflectedLight.indirectSpecular;
+      diffuseColor.a = clamp(diffuseColor.a + fr * 0.55 + dot(sp, vec3(0.3333)) * 0.9, 0.0, 0.9);
+      #include <opaque_fragment>`);
+  };
 
   // Satin brushed-gold lug cap
   const capMat = new THREE.MeshPhysicalMaterial({
@@ -235,8 +256,33 @@ async function init() {
   const surfMat = honeyMat.clone();
   surfMat.clippingPlanes = [];
   surfMat.side = THREE.DoubleSide;
+  surfMat.onBeforeCompile = honeyGlow;
   const surface = new THREE.Mesh(surfGeo, surfMat);
   scene.add(surface);
+
+  // Golden shimmer on top of the honey: glints off tiny surface bubbles, stronger while it sloshes
+  const shimmerMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uAmt: { value: 0.15 } },
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    vertexShader: `varying vec2 vP; void main(){ vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `
+      uniform float uTime, uAmt; varying vec2 vP;
+      float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      void main(){
+        vec2 g = vP * 520.0; vec2 id = floor(g); vec2 f = fract(g) - 0.5;
+        float r = h(id);
+        vec2 o = vec2(h(id + 3.1), h(id + 7.7)) - 0.5;
+        float tw = 0.5 + 0.5 * sin(uTime * (2.5 + r * 6.0) + r * 40.0);
+        float spark = smoothstep(0.16, 0.0, length(f - o * 0.6)) * step(0.78, r) * tw * tw * tw;
+        float band = pow(0.5 + 0.5 * sin(vP.x * 70.0 + vP.y * 35.0 - uTime * 2.2), 8.0);
+        float a = uAmt * (spark * 1.8 + band * 0.35 + 0.06);
+        gl_FragColor = vec4(vec3(1.0, 0.8, 0.42) * a, 1.0);
+      }`,
+  });
+  const shimmer = new THREE.Mesh(surfGeo, shimmerMat);
+  shimmer.position.y = 0.0002;
+  shimmer.renderOrder = 4;
+  surface.add(shimmer);
 
   // A few tiny air bubbles drifting up through the honey (jar-local, metres)
   const BUBBLES = 22;
@@ -373,7 +419,7 @@ async function init() {
     lastPos.copy(p); lastVel.set(vx, vy); lastAngle = angle;
     const worldH = s * size.y;
     // drive: sideways acceleration tips the surface; spinning adds a little slosh
-    const drive = THREE.MathUtils.clamp(-ax / worldH * 0.03 + spin * 0.02, -3, 3);
+    const drive = THREE.MathUtils.clamp(-ax / worldH * 0.03 + spin * 0.035, -3, 3);
     const driveZ = THREE.MathUtils.clamp(ay / worldH * 0.015, -3, 3);
     tiltV.x += (-60 * tilt.x - 5.5 * tiltV.x + drive) * dt;
     tiltV.y += (-60 * tilt.y - 5.5 * tiltV.y + driveZ) * dt;
@@ -387,8 +433,8 @@ async function init() {
     surface.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), up)
       .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle));
     surface.scale.setScalar(s * 0.995);
-    honeyMat.attenuationDistance = worldH * 0.42;
-    surfMat.attenuationDistance = worldH * 0.42;
+    shimmerMat.uniforms.uTime.value = now / 1000;
+    shimmerMat.uniforms.uAmt.value = Math.min(1, 0.15 + Math.abs(tilt.x) * 4 + Math.abs(tilt.y) * 4 + Math.abs(tiltV.x) * 0.5);
 
     // ---- bubbles drift upward and wiggle; reset at the bottom ----
     const t = now / 1000;
