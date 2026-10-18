@@ -1601,3 +1601,10 @@ box-shadow: var(--shadow-sm);
   .journey-intro__jar { height: 34vh; height: 34svh; }
   .journey-intro__title { font-size: 2.2rem; }
 }
+/* corner comb version: jar sits lower, under the comb's edge */
+.journey-intro__stage { padding-top: 22vh; }
+.journey-intro__jar { height: min(48vh, 440px); }
+@media (max-width: 768px) {
+  .journey-intro__stage { padding-top: 6vh; }
+  .journey-intro__jar { height: 34vh; height: 34svh; }
+}
