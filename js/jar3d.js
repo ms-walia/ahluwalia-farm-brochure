@@ -82,37 +82,139 @@ async function init() {
   ]);
 
   const jar = gltf.scene;
+  renderer.localClippingEnabled = true;
+
+  // ---- jar dimensions (GLB units = metres, Y up) ----
+  const FILL_Y = 0.100;          // honey surface: middle of the upper glass bulge
+  const HONEY_HALF = 0.041;      // inner half-width of the honey at that height
+  const HONEY_R = 0.0072;        // inner corner radius
+
+  // Honey surface clipping plane (world space, updated every frame)
+  const honeyPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
+
+  // Translucent golden honey (light passes through, like the real jar)
+  const honeyMat = new THREE.MeshPhysicalMaterial({
+    name: 'HoneyLive',
+    color: new THREE.Color('#e29a2e'),
+    transmission: 0.9,
+    thickness: 0.08,
+    ior: 1.49,
+    roughness: 0.05,
+    attenuationColor: new THREE.Color('#9a440a'),
+    attenuationDistance: 1.0,
+    clearcoat: 0.3,
+    clippingPlanes: [honeyPlane],
+  });
+
+  // Glossy clear glass
+  const glassMat = new THREE.MeshPhysicalMaterial({
+    name: 'GlassLive',
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.12,
+    roughness: 0.02,
+    metalness: 0,
+    clearcoat: 1,
+    clearcoatRoughness: 0.02,
+    envMapIntensity: 1.8,
+    depthWrite: false,
+  });
+
+  // Satin brushed-gold lug cap
+  const capMat = new THREE.MeshPhysicalMaterial({
+    name: 'CapLive', color: new THREE.Color('#cfae62'), metalness: 1, roughness: 0.34, envMapIntensity: 1.1,
+  });
+
   let labelMat = null;
+  let capMesh = null;
   jar.traverse((o) => {
     if (!o.isMesh) return;
     const m = o.material;
     if (!m) return;
-    m.envMapIntensity = 0.55;
     if (o.name.startsWith('Label') || m.name === 'Label') {
       labelMat = m;
-      m.envMapIntensity = 0.25;
-      m.roughness = 0.6;
-      m.clearcoat = 0.0;
-    }
-    if (m.name === 'Glass') {
-      m.transparent = true;
-      m.thickness = 0.02;
-      m.envMapIntensity = 0.9;
-    }
-    if (m.name.startsWith('Honey')) {
-      m.color.set('#5a1a06');             // deep reddish amber, like the real jar
-      m.roughness = 0.12;
-      m.clearcoat = 0.4;
-    }
-    if (m.name === 'GoldCap') {
-      m.color.set('#b08a3e');
-      m.roughness = 0.32;
-      m.envMapIntensity = 1.0;
+      m.roughness = 0.38;
+      m.clearcoat = 0.25;
+      m.clearcoatRoughness = 0.2;
+      m.envMapIntensity = 0.5;
+      m.emissive = new THREE.Color(0xffffff);
+      m.emissiveIntensity = 0.12;            // keeps the printed colours bright and crisp
+      o.renderOrder = 1;
+    } else if (m.name === 'Glass') {
+      o.material = glassMat;
+      o.renderOrder = 3;
+    } else if (m.name.startsWith('Honey')) {
+      o.material = honeyMat;
+    } else if (m.name === 'GoldCap') {
+      capMesh = o;
     }
   });
   if (!labelMat) throw new Error('label mesh not found in GLB');
   labelMat.map = texFrom;
+  labelMat.emissiveMap = texFrom;
   labelMat.needsUpdate = true;
+
+  // Replace the plain cap with one that has the stepped rings and sunken centre of the real lug cap
+  if (capMesh) {
+    capMesh.geometry.computeBoundingBox();
+    const cb = capMesh.geometry.boundingBox;
+    const R = (cb.max.x - cb.min.x) / 2;
+    const H = cb.max.y - cb.min.y;
+    const y0 = cb.min.y, top = cb.max.y;
+    const mm = 0.001;
+    const prof = [
+      [R - 0.6 * mm, y0], [R, y0 + 0.8 * mm], [R, top - 2.4 * mm],
+      [R - 0.5 * mm, top - 0.8 * mm], [R - 1.6 * mm, top],            // rounded outer edge
+      [R - 3.2 * mm, top],                                             // flat outer rim
+      [R - 3.6 * mm, top - 0.5 * mm], [R - 4.6 * mm, top - 0.5 * mm],  // groove
+      [R - 5.0 * mm, top - 0.1 * mm], [R - 5.8 * mm, top - 0.1 * mm],  // thin raised ring
+      [R - 6.2 * mm, top - 0.6 * mm], [R - 7.2 * mm, top - 0.6 * mm],  // second step
+      [R - 8.6 * mm, top - 1.4 * mm], [0, top - 1.4 * mm],             // sunken flat centre
+    ].map(([x, y]) => new THREE.Vector2(x, y));
+    const lathe = new THREE.Mesh(new THREE.LatheGeometry(prof, 128), capMat);
+    lathe.position.copy(capMesh.position);
+    lathe.quaternion.copy(capMesh.quaternion);
+    lathe.position.y += 0;                  // lathe profile already in the cap's local units
+    capMesh.parent.add(lathe);
+    capMesh.visible = false;
+    void H;
+  }
+
+  // Honey surface (a rounded-square sheet that stays level and wobbles)
+  const surfShape = new THREE.Shape();
+  {
+    const h = HONEY_HALF, r = HONEY_R;
+    surfShape.moveTo(-h + r, -h);
+    surfShape.lineTo(h - r, -h); surfShape.quadraticCurveTo(h, -h, h, -h + r);
+    surfShape.lineTo(h, h - r); surfShape.quadraticCurveTo(h, h, h - r, h);
+    surfShape.lineTo(-h + r, h); surfShape.quadraticCurveTo(-h, h, -h, h - r);
+    surfShape.lineTo(-h, -h + r); surfShape.quadraticCurveTo(-h, -h, -h + r, -h);
+  }
+  const surfGeo = new THREE.ShapeGeometry(surfShape, 12);
+  surfGeo.rotateX(-Math.PI / 2);           // lie flat in XZ
+  const surfMat = honeyMat.clone();
+  surfMat.clippingPlanes = [];
+  surfMat.side = THREE.DoubleSide;
+  const surface = new THREE.Mesh(surfGeo, surfMat);
+  scene.add(surface);
+
+  // A few tiny air bubbles drifting up through the honey (jar-local, metres)
+  const BUBBLES = 22;
+  const bubbleMat = new THREE.MeshPhysicalMaterial({
+    color: 0xfff1cf, roughness: 0.08, metalness: 0, emissive: 0xffe2a0, emissiveIntensity: 0.25,
+    clippingPlanes: [honeyPlane],
+  });
+  const bubbles = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 10, 8), bubbleMat, BUBBLES);
+  const bub = [];
+  const rand = (a, b) => a + Math.random() * (b - a);
+  for (let i = 0; i < BUBBLES; i++) {
+    bub.push({
+      x: rand(-0.034, 0.034), y: rand(0.008, FILL_Y - 0.004), z: rand(-0.034, 0.034),
+      r: rand(0.00035, 0.0009), v: rand(0.0008, 0.0022), ph: rand(0, Math.PI * 2),
+    });
+  }
+  const tmpM = new THREE.Matrix4();
+  bubbles.frustumCulled = false;
 
   // Centre the jar on its own vertical middle and normalise its height to 1 unit
   const box = new THREE.Box3().setFromObject(jar);
@@ -124,6 +226,7 @@ async function init() {
   const mover = new THREE.Group();          // travels along the curve
   mover.add(pivot);
   const baseScale = 1 / size.y;
+  jar.add(bubbles);                         // added after measuring so it doesn't affect the size
   scene.add(mover);
 
   section.classList.add('is-3d');
@@ -168,6 +271,12 @@ async function init() {
   }
 
   let progress = targetProgress();
+  let lastT = performance.now();
+  const lastPos = new THREE.Vector3();
+  const lastVel = new THREE.Vector2();
+  let lastAngle = 0;
+  const tilt = new THREE.Vector2();
+  const tiltV = new THREE.Vector2();
   let showingTo = false;
   let inView = false;
   let rafId = 0;
@@ -207,13 +316,55 @@ async function init() {
     const wantTo = angle > Math.PI;
     if (wantTo !== showingTo) {
       labelMat.map = wantTo ? texTo : texFrom;
+      labelMat.emissiveMap = labelMat.map;
       labelMat.needsUpdate = true;
       showingTo = wantTo;
     }
 
+    // ---- liquid: level surface that sloshes with the jar's motion ----
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - lastT) / 1000 || 0.016);
+    lastT = now;
+    mover.updateMatrixWorld(true);
+    const p = mover.position;
+    const vx = (p.x - lastPos.x) / dt, vy = (p.y - lastPos.y) / dt;
+    const ax = (vx - lastVel.x) / dt, ay = (vy - lastVel.y) / dt;
+    const spin = (angle - lastAngle) / dt;
+    lastPos.copy(p); lastVel.set(vx, vy); lastAngle = angle;
+    const worldH = s * size.y;
+    // drive: sideways acceleration tips the surface; spinning adds a little slosh
+    const drive = THREE.MathUtils.clamp(-ax / worldH * 0.03 + spin * 0.02, -3, 3);
+    const driveZ = THREE.MathUtils.clamp(ay / worldH * 0.015, -3, 3);
+    tiltV.x += (-60 * tilt.x - 5.5 * tiltV.x + drive) * dt;
+    tiltV.y += (-60 * tilt.y - 5.5 * tiltV.y + driveZ) * dt;
+    tilt.x = THREE.MathUtils.clamp(tilt.x + tiltV.x * dt, -0.22, 0.22);
+    tilt.y = THREE.MathUtils.clamp(tilt.y + tiltV.y * dt, -0.22, 0.22);
+
+    const up = new THREE.Vector3(Math.sin(tilt.x), 1, Math.sin(tilt.y)).normalize();
+    const fillPt = jar.localToWorld(new THREE.Vector3(0, FILL_Y, 0));
+    honeyPlane.setFromNormalAndCoplanarPoint(up.clone().negate(), fillPt);
+    surface.position.copy(fillPt);
+    surface.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), up)
+      .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle));
+    surface.scale.setScalar(s * 0.995);
+    honeyMat.attenuationDistance = worldH * 0.42;
+    surfMat.attenuationDistance = worldH * 0.42;
+
+    // ---- bubbles drift upward and wiggle; reset at the bottom ----
+    const t = now / 1000;
+    for (let i = 0; i < BUBBLES; i++) {
+      const b = bub[i];
+      b.y += b.v * dt * (1 + Math.abs(tiltV.x) * 0.5);
+      if (b.y > FILL_Y - 0.003) { b.y = 0.008; b.x = rand(-0.034, 0.034); b.z = rand(-0.034, 0.034); }
+      const wx = Math.sin(t * 0.9 + b.ph) * 0.0012 + tilt.x * 0.004;
+      tmpM.makeScale(b.r, b.r, b.r).setPosition(b.x + wx, b.y, b.z + Math.cos(t * 0.7 + b.ph) * 0.001);
+      bubbles.setMatrixAt(i, tmpM);
+    }
+    bubbles.instanceMatrix.needsUpdate = true;
+
     renderer.render(scene, camera);
 
-    if (inView && progress !== target) requestFrame();
+    if (inView) requestFrame();
   }
 
   function requestFrame() {
