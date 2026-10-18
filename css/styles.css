@@ -1567,7 +1567,7 @@ box-shadow: var(--shadow-sm);
 }
 .journey-row__bg--jamun {
   background-image: linear-gradient(rgba(18, 14, 6, 0.64), rgba(18, 14, 6, 0.7)),
-    url("https://images.unsplash.com/photo-1788284017758-6e5073046795?fm=jpg&q=60&w=2000&auto=format&fit=crop");
+    url("https://images.unsplash.com/photo-1597755342512-7deb375044c0?fm=jpg&q=60&w=2000&auto=format&fit=crop");
 }
 .journey-row__count {
   display: block;
