@@ -111,6 +111,26 @@ async function init() {
     return out;
   }
 
+  // Neck: turn the thread ring into a real helix (its end step shows the turn) and give the
+  // glass a slight hand-made unevenness so highlights travel round as the jar spins
+  function neckDetail(geo) {
+    const p = geo.attributes.position, n = geo.attributes.normal;
+    const PITCH = 0.0024;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      if (y < 0.104) continue;
+      const th = Math.atan2(z, x);                  // -π..π
+      if (y > 0.1155 && y < 0.1205 && Math.hypot(x, z) < 0.0416) {
+        p.setY(i, y + PITCH * (th / (2 * Math.PI)));
+      }
+      const w = 0.07 * Math.sin(th * 5 + 1.3) + 0.05 * Math.sin(th * 11 + 0.4) + 0.04 * Math.sin(th * 3 + y * 900);
+      n.setXYZ(i, n.getX(i) - Math.sin(th) * w, n.getY(i) + w * 0.4, n.getZ(i) + Math.cos(th) * w);
+    }
+    n.needsUpdate = true; p.needsUpdate = true;
+    geo.computeBoundingBox(); geo.computeBoundingSphere();
+    return geo;
+  }
+
   // Move every vertex out along its normal (honey meets the outer glass)
   function pushOut(geo, d) {
     const out = geo.clone();
@@ -227,7 +247,7 @@ async function init() {
       m.polygonOffsetUnits = -2;
       o.renderOrder = 5;
     } else if (m.name === 'Glass') {
-      o.geometry = outerShellOnly(o.geometry);   // one thin layer of glass, not two
+      o.geometry = neckDetail(outerShellOnly(o.geometry));   // one thin layer of glass, not two
       o.material = glassMat;
       o.renderOrder = 3;
     } else if (m.name.startsWith('Honey')) {
@@ -259,7 +279,41 @@ async function init() {
       [R - 6.2 * mm, top - 0.6 * mm], [R - 7.2 * mm, top - 0.6 * mm],  // second step
       [R - 8.6 * mm, top - 1.4 * mm], [0, top - 1.4 * mm],             // sunken flat centre
     ].map(([x, y]) => new THREE.Vector2(x, y));
-    const lathe = new THREE.Mesh(new THREE.LatheGeometry(prof, 128), capMat);
+    // fine vertical grip ribs round the skirt, so you can see the cap turn
+    const capGeo = new THREE.LatheGeometry(prof, 360);
+    {
+      const cp = capGeo.attributes.position;
+      for (let i = 0; i < cp.count; i++) {
+        const x = cp.getX(i), y = cp.getY(i), z = cp.getZ(i);
+        const r = Math.hypot(x, z);
+        if (r > R - 0.2 * mm && y > y0 + 1.0 * mm && y < top - 2.6 * mm) {
+          const th = Math.atan2(z, x);
+          const rib = Math.pow(0.5 + 0.5 * Math.cos(th * 72), 3) * 0.35 * mm;
+          const k = (r - rib) / r;
+          cp.setXYZ(i, x * k, y, z * k);
+        }
+      }
+      capGeo.computeVertexNormals();
+    }
+    // brushed-gold streaks that vary round the cap (roughness + a hint of bump)
+    {
+      const cv = document.createElement('canvas');
+      cv.width = 1024; cv.height = 8;
+      const cx = cv.getContext('2d');
+      for (let xx = 0; xx < 1024; xx++) {
+        const g = 120 + Math.random() * 70 + 40 * Math.sin(xx / 1024 * Math.PI * 6);
+        cx.fillStyle = `rgb(${g},${g},${g})`;
+        cx.fillRect(xx, 0, 1, 8);
+      }
+      const bt = new THREE.CanvasTexture(cv);
+      bt.wrapS = THREE.RepeatWrapping;
+      capMat.roughnessMap = bt;
+      capMat.roughness = 0.5;                  // × map → about 0.25–0.4
+      capMat.bumpMap = bt;
+      capMat.bumpScale = 0.4;
+      capMat.needsUpdate = true;
+    }
+    const lathe = new THREE.Mesh(capGeo, capMat);
     lathe.position.copy(capMesh.position);
     lathe.quaternion.copy(capMesh.quaternion);
     lathe.position.y += 0;                  // lathe profile already in the cap's local units
