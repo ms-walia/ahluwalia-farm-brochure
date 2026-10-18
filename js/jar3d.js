@@ -19,7 +19,7 @@ const introRow = document.getElementById('journey-intro');
 const introSlot = document.getElementById('jar-slot-intro');
 const combSlot = document.getElementById('comb-slot');
 const HAS_INTRO = !!(introRow && introSlot);
-const COMB_URL = 'assets/3d/corner_comb.glb';
+const COMB_URL = 'assets/3d/scan_comb.glb';
 const BEE_URL = 'assets/3d/bee.glb';
 const DROP_URL = 'assets/3d/droplet.glb';
 const introInner = document.getElementById('journey-intro-inner');
@@ -520,10 +520,30 @@ async function init() {
     capMat.onBeforeCompile = (sh) => mottle(sh, 0.18);
     capMat.customProgramCacheKey = () => 'combCap';
     const cellHoney = new THREE.MeshPhysicalMaterial({ ...honeyLook, envMapIntensity: 0.9, side: THREE.DoubleSide });
+    // the real scanned comb: keep its texture, warm the old brown wax to fresh gold
+    const scanMat = (map) => {
+      const mt = new THREE.MeshPhysicalMaterial({ map, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.18, envMapIntensity: 0.7, side: THREE.DoubleSide });
+      mt.onBeforeCompile = (sh) => {
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vDepth;')
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDepth = position.z;');
+        sh.fragmentShader = sh.fragmentShader
+          .replace('#include <common>', '#include <common>\nvarying float vDepth;')
+          .replace('#include <map_fragment>', `#include <map_fragment>
+            float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11));
+            // cell rims sit at the front, cell bottoms deep inside: shade by depth so every cell reads
+            float rimK = smoothstep(0.006, 0.03, vDepth);
+            float gl = clamp(rimK * 0.8 + smoothstep(0.06, 0.34, lum) * 0.35, 0.0, 1.0);
+            diffuseColor.rgb = mix(vec3(0.42, 0.15, 0.01), vec3(1.0, 0.66, 0.12), gl);
+            vec3 combGlow = mix(vec3(0.22, 0.07, 0.0), vec3(0.42, 0.2, 0.02), gl);`)
+          .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance = combGlow;');
+      };
+      mt.customProgramCacheKey = () => 'scanComb';
+      return mt;
+    };
     cm.traverse((o) => {
       if (o.isMesh) {
         const n = o.material && o.material.name;
-        o.material = n === 'Honey' ? cellHoney : n === 'CapWax' ? capMat : waxMat;
+        o.material = o.material.map ? scanMat(o.material.map) : n === 'Honey' ? cellHoney : n === 'CapWax' ? capMat : waxMat;
       }
       if (o.name.startsWith('DripTip')) tips.push(o);
     });
@@ -562,12 +582,40 @@ async function init() {
     comb.add(flyer.obj);
   }
   // honey drop: the droplet model (origin at its top tip), honey-coloured, on a stretching strand
-  const dropMat = new THREE.MeshPhysicalMaterial({ ...honeyLook, transparent: true, opacity: 0.95 });
+  // clear golden honey: see-through, deeper amber in the middle, bright gold where light comes
+  // through the edges and the bottom, long white highlights down the sides
+  const dropMat = new THREE.MeshPhysicalMaterial({
+    color: '#c97a10', emissive: '#7a3a04', emissiveIntensity: 0.45, roughness: 0.015, metalness: 0,
+    clearcoat: 1, clearcoatRoughness: 0.01, specularIntensity: 1, envMapIntensity: 2.2,
+    transparent: true, opacity: 0.8, depthWrite: false,
+  });
+  dropMat.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      vec3 nv = normalize(normal);
+      float rimD = 1.0 - abs(dot(nv, normalize(vViewPosition)));
+      float under = clamp(-nv.y, 0.0, 1.0);
+      totalEmissiveRadiance += vec3(1.0, 0.72, 0.16) * (pow(rimD, 1.4) * 0.55 + pow(under, 2.0) * 0.45);
+      diffuseColor.a = clamp(diffuseColor.a * (0.75 + 0.35 * rimD), 0.0, 1.0);`);
+  };
+  dropMat.customProgramCacheKey = () => 'honeyDrop';
   let dropGeo = null;
   if (dropGltf) dropGltf.scene.traverse((o) => { if (o.isMesh && !dropGeo && o.name !== 'Floor' && o.name !== 'Cube') dropGeo = o.geometry; });
   const drop = new THREE.Mesh(dropGeo || new THREE.SphereGeometry(0.35, 24, 18).translate(0, -0.6, 0), dropMat);
-  const strand = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 14, 1, true), dropMat);
+  // strand: thick where it leaves the comb, thin in the middle, flaring into the drop's neck
+  const strandPts = [];
+  for (let i = 0; i <= 20; i++) {
+    const y = i / 20;                                    // 0 = drop end, 1 = comb end
+    const r = 0.35 + 1.25 * Math.pow(1 - y, 6) + 0.6 * Math.pow(y, 4);
+    strandPts.push(new THREE.Vector2(r, y - 0.5));
+  }
+  const strand = new THREE.Mesh(new THREE.LatheGeometry(strandPts, 18), dropMat);
   const stub = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), dropMat);   // honey gathered at the comb's edge
+  {
+    const bmat = new THREE.MeshBasicMaterial({ color: '#ffe9a8', transparent: true, opacity: 0.85 });
+    const bg = new THREE.SphereGeometry(1, 8, 6);
+    [[0.05, -0.62, 0.08, 0.025], [-0.08, -0.7, 0.05, 0.018], [0.02, -0.8, 0.1, 0.03], [-0.03, -0.55, 0.12, 0.014], [0.09, -0.75, -0.02, 0.016]]
+      .forEach(([x, y, z, r]) => { const b = new THREE.Mesh(bg, bmat); b.position.set(x, y, z); b.scale.setScalar(r); drop.add(b); });
+  }
   drop.visible = strand.visible = stub.visible = false;
   drop.renderOrder = strand.renderOrder = 2;
   scene.add(drop, strand, stub);
