@@ -1441,7 +1441,7 @@ box-shadow: var(--shadow-sm);
 .jar-journey__bg--a {
   background-image:
     linear-gradient(rgba(18, 14, 6, 0.58), rgba(18, 14, 6, 0.66)),
-    url("https://images.unsplash.com/photo-1777657023147-b494a91c2a4c?fm=jpg&q=60&w=2000&auto=format&fit=crop");
+    url("https://images.unsplash.com/photo-1773582507839-41fb1048259a?fm=jpg&q=60&w=2000&auto=format&fit=crop");
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 42%, transparent 58%);
   mask-image: linear-gradient(to bottom, #000 0%, #000 42%, transparent 58%);
 }
