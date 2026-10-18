@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const section = document.getElementById('jar-journey');
 const canvas = document.getElementById('jar-canvas');
@@ -127,6 +128,8 @@ async function init() {
 
   // Neck: turn the thread ring into a real helix (its end step shows the turn) and give the
   // glass a slight hand-made unevenness so highlights travel round as the jar spins
+  const NECK_Y0 = 0.114, NECK_K = 0.72;
+  const NECK_DROP = (0.134 - NECK_Y0) * (1 - NECK_K);   // how much lower the rim (and the closed cap) sit
   function neckDetail(geo) {
     const p = geo.attributes.position, n = geo.attributes.normal;
     const PITCH = 0.0024;
@@ -137,6 +140,8 @@ async function init() {
       if (y > 0.1155 && y < 0.1205 && Math.hypot(x, z) < 0.0416) {
         p.setY(i, y + PITCH * (th / (2 * Math.PI)));
       }
+      // shorter neck: squash everything above the shoulder
+      if (y > NECK_Y0) p.setY(i, NECK_Y0 + (p.getY(i) - NECK_Y0) * NECK_K);
       const w = 0.07 * Math.sin(th * 5 + 1.3) + 0.05 * Math.sin(th * 11 + 0.4) + 0.04 * Math.sin(th * 3 + y * 900);
       n.setXYZ(i, n.getX(i) - Math.sin(th) * w, n.getY(i) + w * 0.4, n.getZ(i) + Math.cos(th) * w);
     }
@@ -244,7 +249,8 @@ async function init() {
       // over the label band keep the glass almost clear, so the print stays crisp
       float band = smoothstep(0.010, 0.014, vGY) * (1.0 - smoothstep(0.094, 0.099, vGY));
       float boost = mix(1.0, 0.18, band);
-      diffuseColor.a = clamp(diffuseColor.a * mix(1.0, 0.4, band) + (fr * 0.55 + dot(sp, vec3(0.3333)) * 0.9) * boost, 0.0, 0.9);
+      float neck = smoothstep(0.113, 0.116, vGY);          // soft frost so the neck doesn't vanish
+      diffuseColor.a = clamp(diffuseColor.a * mix(1.0, 0.4, band) + neck * 0.1 + (fr * 0.55 + dot(sp, vec3(0.3333)) * 0.9) * boost, 0.0, 0.9);
       #include <opaque_fragment>`);
   };
   glassMat.customProgramCacheKey = () => 'glassBand';
@@ -344,6 +350,24 @@ async function init() {
     capMesh.parent.add(lathe);
     capLive = lathe;
     capBase.copy(lathe.position);
+    capBase.y -= NECK_DROP;
+    // a raised glass screw thread round the neck, visible when the lid is off
+    {
+      const R = 0.0401, y0 = NECK_Y0 + 0.0022, PITCH = 0.0032, TURNS = 1.7;
+      class Helix extends THREE.Curve {
+        getPoint(t, out = new THREE.Vector3()) {
+          const a = t * TURNS * Math.PI * 2;
+          const taper = Math.min(1, t * 8, (1 - t) * 8);
+          return out.set((R + 0.0004 * taper) * Math.cos(a), y0 + PITCH * t * TURNS, (R + 0.0004 * taper) * Math.sin(a));
+        }
+      }
+      const threadMat = glassMat.clone();
+      threadMat.opacity = 0.32;
+      threadMat.side = THREE.FrontSide;
+      const thread = new THREE.Mesh(new THREE.TubeGeometry(new Helix(), 220, 0.00085, 8, false), threadMat);
+      thread.renderOrder = 3;
+      capMesh.parent.add(thread);
+    }
     capMesh.visible = false;
     void H;
   }
@@ -451,66 +475,88 @@ async function init() {
     return { ...h, c: new THREE.Color(h.c), em: new THREE.Color(h.em), gcol: new THREE.Color(...h.gc) };
   });
 
-  // ---------- honeycomb (intro) ----------
+  // ---------- honeycomb (intro): real 3D wax cells filled with honey, chunky slanted cut ----------
   const COMB_H = 0.075;
   const comb = new THREE.Group();
   const combTip = new THREE.Object3D();
   const tmpV1 = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
   let landed = false;
   {
-    // hexagon cell texture (tiles seamlessly) + matching bump map
-    const R = 20, W = Math.sqrt(3) * R;
-    const cw = Math.round(W * 12), ch = R * 3 * 6;
-    const mk = () => { const c = document.createElement('canvas'); c.width = cw; c.height = ch; return c; };
-    const col = mk(), bmp = mk();
-    const g = col.getContext('2d'), b = bmp.getContext('2d');
-    g.fillStyle = '#8a4a06'; g.fillRect(0, 0, cw, ch);
-    b.fillStyle = '#ffffff'; b.fillRect(0, 0, cw, ch);
-    const hex = (ctx, cx, cy, rr) => {
-      ctx.beginPath();
-      for (let k = 0; k < 6; k++) {
-        const a = Math.PI / 180 * (60 * k - 90);
-        ctx[k ? 'lineTo' : 'moveTo'](cx + rr * Math.cos(a), cy + rr * Math.sin(a));
-      }
-      ctx.closePath();
+    const r = 0.0046, WALL = 0.0011, D = 0.034;          // cell circumradius, wall, slab depth
+    const dx = Math.sqrt(3) * r, dy = 1.5 * r;
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    // irregular slab outline: slanted top, wavy bottom, ragged ends
+    const inside = (x, y) => {
+      const top = 0.024 - 0.16 * x;
+      const bot = -0.03;
+      const half = 0.054;
+      return y < top && y > bot && Math.abs(x) < half;
     };
-    for (let row = -1; row <= ch / (1.5 * R) + 1; row++) {
-      for (let cI = -1; cI <= cw / W + 1; cI++) {
-        const cx = cI * W + (row % 2 ? W / 2 : 0), cy = row * 1.5 * R;
-        const gr = g.createRadialGradient(cx - R * 0.2, cy - R * 0.25, 1, cx, cy, R);
-        gr.addColorStop(0, '#ffe08a'); gr.addColorStop(0.45, '#f0a92a'); gr.addColorStop(1, '#b8650a');
-        g.fillStyle = gr; hex(g, cx, cy, R - 2.6); g.fill();
-        g.fillStyle = 'rgba(255,255,255,0.45)';
-        g.beginPath(); g.arc(cx - R * 0.32, cy - R * 0.38, R * 0.14, 0, Math.PI * 2); g.fill();
-        const gb = b.createRadialGradient(cx, cy, 1, cx, cy, R);
-        gb.addColorStop(0, '#3a3a3a'); gb.addColorStop(1, '#9a9a9a');
-        b.fillStyle = gb; hex(b, cx, cy, R - 2.6); b.fill();
+    const ringShape = (rr, t) => {
+      const sh = new THREE.Shape(), hole = new THREE.Path();
+      for (let k = 0; k < 6; k++) {
+        const a = Math.PI / 3 * k + Math.PI / 6;
+        sh[k ? 'lineTo' : 'moveTo'](rr * Math.cos(a), rr * Math.sin(a));
+        hole[k ? 'lineTo' : 'moveTo']((rr - t) * Math.cos(a), (rr - t) * Math.sin(a));
+      }
+      sh.holes.push(hole);
+      return sh;
+    };
+    const hexShape = (rr) => {
+      const sh = new THREE.Shape();
+      for (let k = 0; k < 6; k++) {
+        const a = Math.PI / 3 * k + Math.PI / 6;
+        sh[k ? 'lineTo' : 'moveTo'](rr * Math.cos(a), rr * Math.sin(a));
+      }
+      return sh;
+    };
+    const ringGeo = new THREE.ExtrudeGeometry(ringShape(r, WALL), { depth: D, bevelEnabled: false });
+    ringGeo.translate(0, 0, -D / 2);
+    const capGeo2 = new THREE.ShapeGeometry(hexShape(r - WALL * 0.6));
+    const walls = [], fills = [], backs = [];
+    for (let row = -14; row <= 14; row++) {
+      for (let col = -16; col <= 16; col++) {
+        const x = col * dx + (row & 1 ? dx / 2 : 0), y = row * dy;
+        if (!inside(x, y)) continue;
+        // front face is cut on a slight slope, so cells near the top are shallower
+        const g = ringGeo.clone();
+        g.translate(x, y, 0);
+        walls.push(g);
+        const full = rnd() > 0.12;                        // a few empty cells show the structure
+        const f = capGeo2.clone();
+        f.rotateX((rnd() - 0.5) * 0.5); f.rotateY((rnd() - 0.5) * 0.5);   // uneven surfaces catch light differently
+        f.translate(x, y, full ? D / 2 - 0.0025 - rnd() * 0.003 : -D / 2 + 0.003);
+        (full ? fills : backs).push(f);
       }
     }
-    const tCol = new THREE.CanvasTexture(col), tBmp = new THREE.CanvasTexture(bmp);
-    tCol.colorSpace = THREE.SRGBColorSpace;
-    for (const t of [tCol, tBmp]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(0.75, 0.5); }
-    const combMat = new THREE.MeshPhysicalMaterial({
-      map: tCol, bumpMap: tBmp, bumpScale: 4, roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.06,
-      emissive: new THREE.Color('#ffb340'), emissiveMap: tCol, emissiveIntensity: 0.28, envMapIntensity: 1.1,
+    const waxMat = new THREE.MeshPhysicalMaterial({
+      color: '#f2b53a', emissive: '#c77c12', emissiveIntensity: 0.42, roughness: 0.32, envMapIntensity: 0.6,
+      clearcoat: 0.8, clearcoatRoughness: 0.12, transparent: true, opacity: 0.94, side: THREE.DoubleSide,
+    });
+    const fillMat = new THREE.MeshPhysicalMaterial({
+      color: '#b0580a', emissive: '#5a2202', emissiveIntensity: 0.65, roughness: 0.02,
+      clearcoat: 1, clearcoatRoughness: 0.02, specularIntensity: 0.6, envMapIntensity: 0.3, side: THREE.DoubleSide,
     });
     const body = new THREE.Group();
-    const block = new THREE.Mesh(new THREE.BoxGeometry(0.11, COMB_H * 0.8, 0.05), combMat);
-    body.add(block);
-    // honey pooling and hanging off the bottom edge
+    body.add(new THREE.Mesh(mergeGeometries(walls), waxMat));
+    body.add(new THREE.Mesh(mergeGeometries(fills), fillMat));
+    if (backs.length) body.add(new THREE.Mesh(mergeGeometries(backs), waxMat));
+    // honey oozing over the bottom edge, with the drop forming in the middle
     const dripMat = new THREE.MeshPhysicalMaterial({
-      color: '#c26a10', emissive: '#6a2a04', emissiveIntensity: 0.5, roughness: 0.04, clearcoat: 1, transparent: true, opacity: 0.94,
+      color: '#c96f10', emissive: '#6a2a04', emissiveIntensity: 0.5, roughness: 0.03, clearcoat: 1, transparent: true, opacity: 0.95,
     });
     const sph = new THREE.SphereGeometry(1, 20, 14);
-    [[-0.035, 0.0035, 1.5], [0.03, 0.003, 1.3], [0.0, 0.0045, 1.9]].forEach(([x, rr, st]) => {
+    [[-0.03, 0.0032, 1.6], [0.024, 0.0028, 1.3], [-0.008, 0.0024, 1.2], [0.004, 0.0042, 2.0]].forEach(([x, rr, st]) => {
       const dm = new THREE.Mesh(sph, dripMat);
-      dm.scale.set(rr, rr * st, rr);
-      dm.position.set(x, -COMB_H * 0.4 - rr * st * 0.55, 0.022);
+      const yb = -0.03;
+      dm.scale.set(rr, rr * st, rr * 0.9);
+      dm.position.set(x, yb - rr * st * 0.45, D / 2 - 0.004);
       body.add(dm);
+      if (rr > 0.004) combTip.position.set(x, yb - rr * st * 1.0, D / 2 - 0.004);
     });
-    combTip.position.set(0, -COMB_H * 0.4 - 0.0045 * 1.9 * 1.1, 0.022);
     body.add(combTip);
-    body.rotation.set(0.28, -0.38, -0.06);
+    body.rotation.set(0.2, -0.32, -0.04);
     comb.add(body);
     comb.visible = false;
     scene.add(comb);
