@@ -271,7 +271,9 @@ async function init() {
     const y0 = cb.min.y, top = cb.max.y;
     const mm = 0.001;
     const prof = [
-      [R - 0.6 * mm, y0], [R, y0 + 0.8 * mm], [R, top - 2.4 * mm],
+      [R - 0.6 * mm, y0], [R, y0 + 0.8 * mm],
+      ...Array.from({ length: 9 }, (_, i) => [R, y0 + 0.8 * mm + (i + 1) * ((top - 2.4 * mm) - (y0 + 0.8 * mm)) / 10]),
+      [R, top - 2.4 * mm],
       [R - 0.5 * mm, top - 0.8 * mm], [R - 1.6 * mm, top],            // rounded outer edge
       [R - 3.2 * mm, top],                                             // flat outer rim
       [R - 3.6 * mm, top - 0.5 * mm], [R - 4.6 * mm, top - 0.5 * mm],  // groove
@@ -279,39 +281,32 @@ async function init() {
       [R - 6.2 * mm, top - 0.6 * mm], [R - 7.2 * mm, top - 0.6 * mm],  // second step
       [R - 8.6 * mm, top - 1.4 * mm], [0, top - 1.4 * mm],             // sunken flat centre
     ].map(([x, y]) => new THREE.Vector2(x, y));
-    // fine vertical grip ribs round the skirt, so you can see the cap turn
+    // pressed-in lugs round the bottom edge of the skirt (they grip the jar's thread), like the real cap
     const capGeo = new THREE.LatheGeometry(prof, 360);
     {
+      const LUGS = 4, LUG_W = 4.0 * mm, LUG_H = 5.0 * mm, LUG_D = 1.5 * mm;
       const cp = capGeo.attributes.position;
       for (let i = 0; i < cp.count; i++) {
         const x = cp.getX(i), y = cp.getY(i), z = cp.getZ(i);
         const r = Math.hypot(x, z);
-        if (r > R - 0.2 * mm && y > y0 + 1.0 * mm && y < top - 2.6 * mm) {
-          const th = Math.atan2(z, x);
-          const rib = Math.pow(0.5 + 0.5 * Math.cos(th * 72), 3) * 0.35 * mm;
-          const k = (r - rib) / r;
-          cp.setXYZ(i, x * k, y, z * k);
-        }
+        if (r < R - 0.7 * mm || y > y0 + LUG_H) continue;
+        const th = Math.atan2(z, x);
+        const step = (2 * Math.PI) / LUGS;
+        const dTh = ((th - step / 2) % step + step * 1.5) % step - step / 2;   // angle to nearest lug
+        const t = (R * dTh) / LUG_W;
+        const wy = Math.pow(Math.max(0, 1 - (y - y0) / LUG_H), 1.3);
+        const dent = LUG_D * Math.exp(-t * t) * wy;
+        const k = (r - dent) / r;
+        cp.setXYZ(i, x * k, y, z * k);
       }
       capGeo.computeVertexNormals();
-    }
-    // brushed-gold streaks that vary round the cap (roughness + a hint of bump)
-    {
-      const cv = document.createElement('canvas');
-      cv.width = 1024; cv.height = 8;
-      const cx = cv.getContext('2d');
-      for (let xx = 0; xx < 1024; xx++) {
-        const g = 120 + Math.random() * 70 + 40 * Math.sin(xx / 1024 * Math.PI * 6);
-        cx.fillStyle = `rgb(${g},${g},${g})`;
-        cx.fillRect(xx, 0, 1, 8);
+      // weld the lathe seam so no line shows on the cap
+      const cn = capGeo.attributes.normal, P = prof.length, last = 360 * P;
+      for (let j = 0; j < P; j++) {
+        const nx = cn.getX(j) + cn.getX(last + j), ny = cn.getY(j) + cn.getY(last + j), nz = cn.getZ(j) + cn.getZ(last + j);
+        const l = Math.hypot(nx, ny, nz) || 1;
+        cn.setXYZ(j, nx / l, ny / l, nz / l); cn.setXYZ(last + j, nx / l, ny / l, nz / l);
       }
-      const bt = new THREE.CanvasTexture(cv);
-      bt.wrapS = THREE.RepeatWrapping;
-      capMat.roughnessMap = bt;
-      capMat.roughness = 0.5;                  // × map → about 0.25–0.4
-      capMat.bumpMap = bt;
-      capMat.bumpScale = 0.4;
-      capMat.needsUpdate = true;
     }
     const lathe = new THREE.Mesh(capGeo, capMat);
     lathe.position.copy(capMesh.position);
