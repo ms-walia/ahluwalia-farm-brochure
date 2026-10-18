@@ -111,12 +111,12 @@ async function init() {
     name: 'GlassLive',
     color: 0xffffff,
     transparent: true,
-    opacity: 0.12,
-    roughness: 0.02,
+    opacity: 0.2,
+    roughness: 0.2,               // soft satin sheen, like moulded glass
     metalness: 0,
-    clearcoat: 1,
-    clearcoatRoughness: 0.02,
-    envMapIntensity: 1.8,
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.18,
+    envMapIntensity: 1.25,
     depthWrite: false,
   });
 
@@ -139,7 +139,11 @@ async function init() {
       m.envMapIntensity = 0.5;
       m.emissive = new THREE.Color(0xffffff);
       m.emissiveIntensity = 0.12;            // keeps the printed colours bright and crisp
-      o.renderOrder = 1;
+      // draw the label after the glass and pull it onto the outer surface so it reads as stuck on
+      m.polygonOffset = true;
+      m.polygonOffsetFactor = -2;
+      m.polygonOffsetUnits = -2;
+      o.renderOrder = 5;
     } else if (m.name === 'Glass') {
       o.material = glassMat;
       o.renderOrder = 3;
