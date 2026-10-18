@@ -215,12 +215,21 @@ async function init() {
   });
   // …brighter at the edges and wherever a highlight lands, like real glass
   glassMat.onBeforeCompile = (sh) => {
-    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vGY;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGY = position.y;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vGY;')
+      .replace('#include <opaque_fragment>', `
       float fr = pow(1.0 - abs(dot(normalize(geometryNormal), normalize(geometryViewDir))), 3.0);
       vec3 sp = reflectedLight.directSpecular + reflectedLight.indirectSpecular;
-      diffuseColor.a = clamp(diffuseColor.a + fr * 0.55 + dot(sp, vec3(0.3333)) * 0.9, 0.0, 0.9);
+      // over the label band keep the glass almost clear, so the print stays crisp
+      float band = smoothstep(0.010, 0.014, vGY) * (1.0 - smoothstep(0.094, 0.099, vGY));
+      float boost = mix(1.0, 0.18, band);
+      diffuseColor.a = clamp(diffuseColor.a * mix(1.0, 0.4, band) + (fr * 0.55 + dot(sp, vec3(0.3333)) * 0.9) * boost, 0.0, 0.9);
       #include <opaque_fragment>`);
   };
+  glassMat.customProgramCacheKey = () => 'glassBand';
 
   // Satin brushed-gold lug cap
   const capMat = new THREE.MeshPhysicalMaterial({
@@ -236,7 +245,7 @@ async function init() {
     if (o.name.startsWith('Label') || m.name === 'Label') {
       labelMat = m;
       m.roughness = 0.38;
-      m.clearcoat = 0.25;
+      m.clearcoat = 0.12;
       m.clearcoatRoughness = 0.2;
       m.envMapIntensity = 0.5;
       m.emissive = new THREE.Color(0xffffff);
