@@ -11,16 +11,18 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const section = document.getElementById('jar-journey');
 const canvas = document.getElementById('jar-canvas');
-const slotA = document.getElementById('jar-slot-a');
-const slotB = document.getElementById('jar-slot-b');
+const slots = section ? [...section.querySelectorAll('.journey-slot')] : [];
+const rows = slots.map((el) => el.closest('.journey-row'));
+const KEYS = rows.map((r) => r.dataset.variety);
 
 const JAR_URL = 'assets/3d/Multiflora_1kg_jar.glb';
 const LABELS = {
   'multiflora': 'assets/3d/labels/multiflora-1kg.jpg',
   'mustard': 'assets/3d/labels/mustard-1kg.jpg',
+  'kashmiri-acacia': 'assets/3d/labels/kashmiri-acacia-1kg.jpg',
+  'ajwain': 'assets/3d/labels/ajwain-1kg.jpg',
+  'jamun': 'assets/3d/labels/jamun-1kg.jpg',
 };
-const FROM = 'multiflora';
-const TO = 'mustard';
 
 // ?nosmooth disables easing (used for automated screenshots)
 const SMOOTH = new URLSearchParams(location.search).has('nosmooth') ? 1 : 0.18;
@@ -35,7 +37,7 @@ function webglAvailable() {
   }
 }
 
-if (section && canvas && slotA && slotB && !reduceMotion && webglAvailable()) {
+if (section && canvas && slots.length > 1 && !reduceMotion && webglAvailable()) {
   init().catch((err) => {
     // Leave the static jar photos in place if anything fails.
     console.warn('[jar3d] 3D jar disabled:', err);
@@ -75,10 +77,9 @@ async function init() {
     res(t);
   }, undefined, rej));
 
-  const [gltf, texFrom, texTo] = await Promise.all([
+  const [gltf, ...tex] = await Promise.all([
     new GLTFLoader().loadAsync(JAR_URL),
-    loadTex(LABELS[FROM]),
-    loadTex(LABELS[TO]),
+    ...KEYS.map((k) => loadTex(LABELS[k])),
   ]);
 
   const jar = gltf.scene;
@@ -267,8 +268,8 @@ async function init() {
     }
   });
   if (!labelMat) throw new Error('label mesh not found in GLB');
-  labelMat.map = texFrom;
-  labelMat.emissiveMap = texFrom;
+  labelMat.map = tex[0];
+  labelMat.emissiveMap = tex[0];
   labelMat.needsUpdate = true;
 
   // Replace the plain cap with one that has the stepped rings and sunken centre of the real lug cap
@@ -449,18 +450,18 @@ async function init() {
   const clamp01 = (v) => Math.min(1, Math.max(0, v));
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-  // Scroll progress: 0 while Multiflora's jar slot is above the viewport centre line,
-  // 1 once Mustard's slot reaches it.
-  const rowA = slotA.closest('.journey-row');
-  const rowB = slotB.closest('.journey-row');
-  // 0 when the Multiflora card fills the screen, 1 when the Mustard card does
+  // Scroll progress P: 0 when the first card fills the screen, 1 for the second, … N-1 for the last
+  const N = slots.length;
   function rawProgress() {
-    const a = rowA.getBoundingClientRect().top;
-    const span = rowB.getBoundingClientRect().top - a;
-    return span > 0 ? -a / span : 0;
+    const tops = rows.map((r) => r.getBoundingClientRect().top);
+    if (tops[0] >= 0) return -tops[0] / Math.max(1, tops[1] - tops[0]);
+    for (let i = 0; i < N - 1; i++) {
+      if (tops[i + 1] > 0) return i + -tops[i] / Math.max(1, tops[i + 1] - tops[i]);
+    }
+    return N - 1 + -tops[N - 1] / Math.max(1, tops[N - 1] - tops[N - 2]);
   }
   function targetProgress() {
-    return clamp01(rawProgress());
+    return Math.min(N - 1, Math.max(0, rawProgress()));
   }
 
   let progress = targetProgress();
@@ -470,21 +471,22 @@ async function init() {
   let lastAngle = 0;
   const tilt = new THREE.Vector2();
   const tiltV = new THREE.Vector2();
-  let showingTo = false;
+  let shownTex = 0;
   let inView = false;
   let rafId = 0;
 
-  const REST_A = -0.32;                     // slight turn so the jar reads as 3D
-  const REST_B = 0.32;
+  // slight turn towards the text so the jar reads as 3D
+  const REST = rows.map((r) => (r.classList.contains('journey-row--left') ? 0.32 : -0.32));
   const TAU = Math.PI * 2;
 
   // ---- visitor can swipe/drag the jar to turn it while it rests on a card ----
-  let atCard = 0;                           // 0 = Multiflora, 1 = Mustard, -1 = travelling
-  let userA = 0, userB = 0, userV = 0;
+  let atCard = 0;                           // index of the card the jar rests on, -1 = travelling
+  const user = slots.map(() => 0);
+  let userV = 0;
   let dragging = false, dragX = 0, dragT = 0;
   const DRAG = 0.012;                       // radians per pixel
-  const turnBy = (d) => { if (atCard === 0) userA += d; else if (atCard === 1) userB += d; };
-  [slotA, slotB].forEach((el) => {
+  const turnBy = (d) => { if (atCard >= 0) user[atCard] += d; };
+  slots.forEach((el) => {
     el.addEventListener('pointerdown', (ev) => {
       if (atCard < 0) return;
       if (ev.pointerType === 'mouse') ev.preventDefault();
@@ -511,9 +513,11 @@ async function init() {
   function maybeSnap() {
     if (touching || snapping || SMOOTH === 1) return;   // ?nosmooth (screenshots): no assist
     const p = rawProgress();
-    if (p <= 0.003 || p >= 0.997) return;   // resting on a card, or outside the cards
-    const next = dir > 0 ? (p > 0.08 ? 1 : 0) : (p < 0.92 ? 0 : 1);
-    const row = next ? rowB : rowA;
+    if (p <= 0.003 || p >= N - 1.003) return;   // outside the cards
+    const f = p - Math.floor(p);
+    if (f <= 0.003 || f >= 0.997) return;       // already resting on a card
+    const next = dir > 0 ? (f > 0.08 ? Math.ceil(p) : Math.floor(p)) : (f < 0.92 ? Math.floor(p) : Math.ceil(p));
+    const row = rows[next];
     snapping = true;
     window.scrollTo({ top: row.getBoundingClientRect().top + window.scrollY, behavior: 'smooth' });
     clearTimeout(snapEnd);
@@ -539,9 +543,10 @@ async function init() {
     progress += (target - progress) * SMOOTH;  // gentle smoothing
     if (Math.abs(target - progress) < 0.0005) progress = target;
 
-    const e = ease(progress);
-    const A = slotInfo(slotA);
-    const B = slotInfo(slotB);
+    const seg = Math.min(N - 2, Math.floor(progress));
+    const e = ease(progress - seg);
+    const A = slotInfo(slots[seg]);
+    const B = slotInfo(slots[seg + 1]);
 
     // Screen position: blend between the two live slot centres along an S-curve
     const sx = A.x + (B.x - A.x) * e;
@@ -559,28 +564,28 @@ async function init() {
     pivot.rotation.z = -arc * 0.12 * (B.x < A.x ? 1 : -1);
 
     // Resting on a card, or travelling between them
-    if (e <= 0.0001) atCard = 0;
-    else if (e >= 0.9999) atCard = 1;
+    if (e <= 0.0001) atCard = seg;
+    else if (e >= 0.9999) atCard = seg + 1;
     else if (atCard !== -1) {
       // leaving a card: the jar sets off from wherever the visitor left it,
-      // and the card it is heading to receives it front-facing
-      if (atCard === 0) userB = 0; else userA = 0;
+      // and every other card receives it front-facing
+      for (let k = 0; k < N; k++) if (k !== atCard) user[k] = 0;
       userV = 0; dragging = false; atCard = -1;
     }
-    const angA = REST_A + userA;
-    let angB = REST_B + userB;
+    const angA = REST[seg] + user[seg];
+    let angB = REST[seg + 1] + user[seg + 1];
     angB += TAU * Math.ceil((angA + Math.PI - angB) / TAU);   // at least half a turn, so the back passes the viewer
     const angle = angA + (angB - angA) * e;
     pivot.rotation.y = angle;
 
     // Swap the label when the plain back faces the viewer
     const swapAt = Math.PI * (2 * Math.round(((angA + angB) / 2 - Math.PI) / TAU) + 1);
-    const wantTo = e >= 0.9999 ? true : e <= 0.0001 ? false : angle >= swapAt;
-    if (wantTo !== showingTo) {
-      labelMat.map = wantTo ? texTo : texFrom;
+    const wantTex = e >= 0.9999 ? seg + 1 : e <= 0.0001 ? seg : (angle >= swapAt ? seg + 1 : seg);
+    if (wantTex !== shownTex) {
+      labelMat.map = tex[wantTex];
       labelMat.emissiveMap = labelMat.map;
       labelMat.needsUpdate = true;
-      showingTo = wantTo;
+      shownTex = wantTex;
     }
 
     // ---- liquid: level surface that sloshes with the jar's motion ----

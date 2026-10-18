@@ -33,7 +33,7 @@
       </button>
       <ul class="nav__menu" id="nav-menu">
         <li><a href="#about">About</a></li>
-        <li><a href="#honey">Honey</a></li>
+        <li><a href="#jar-journey">Honey</a></li>
         <li><a href="#poultry">Eggs</a></li>
         <li><a href="#standards">Standards</a></li>
         <li><a href="#gallery">Gallery</a></li>
@@ -90,88 +90,14 @@
     </section>
 
     <!-- Honey Collection -->
-    <section class="section honey" id="honey">
-      <div class="container">
-        <div class="section-header reveal">
-          <span class="section-label">Our Collection</span>
-          <h2 class="section-title">Our Honey Collection</h2>
-          <p class="section-desc">Four distinctive floral origins, each harvested with care and bottled raw &amp; unprocessed.</p>
-        </div>
-        <div class="product-grid">
-          <article class="product-card reveal">
-            <div class="product-card__image">
-              <img src="assets/multiflora-front.png" alt="Multiflora Honey jar" loading="lazy">
-              <div class="product-card__badges">
-                <span class="badge badge--region">Himachal Pradesh &amp; Punjab</span>
-                <span class="badge badge--raw">Raw &amp; Unprocessed</span>
-                <span class="badge badge--premium">Premium</span>
-              </div>
-            </div>
-            <div class="product-card__body">
-              <h3>Multiflora Honey</h3>
-              <p>Collected from the diverse flowers of Himachal Pradesh and Punjab, Multiflora Honey offers a naturally rich floral aroma and balanced sweetness, making it ideal for everyday use.</p>
-              <p class="product-card__origin"><strong>Origin:</strong> Himachal Pradesh &amp; Punjab</p>
-            </div>
-          </article>
-
-          <article class="product-card reveal">
-            <div class="product-card__image">
-              <img src="assets/kashmiri-acacia-front.png" alt="Kashmiri Acacia Honey jar" loading="lazy">
-              <div class="product-card__badges">
-                <span class="badge badge--region">Kashmir</span>
-                <span class="badge badge--raw">Raw &amp; Unprocessed</span>
-                <span class="badge badge--premium">Premium</span>
-              </div>
-            </div>
-            <div class="product-card__body">
-              <h3>Kashmiri Acacia Honey</h3>
-              <p>Collected from Acacia blossoms in Kashmir, this honey features a light golden color, delicate floral aroma, and a smooth, mild taste.</p>
-              <p class="product-card__origin"><strong>Origin:</strong> Kashmir</p>
-            </div>
-          </article>
-
-          <article class="product-card reveal">
-            <div class="product-card__image">
-              <img src="assets/mustard-front.jpeg" alt="Mustard Honey jar" loading="lazy">
-              <div class="product-card__badges">
-                <span class="badge badge--region">Hanumangarh, Rajasthan</span>
-                <span class="badge badge--raw">Raw &amp; Unprocessed</span>
-                <span class="badge badge--premium">Premium</span>
-              </div>
-            </div>
-            <div class="product-card__body">
-              <h3>Mustard Honey</h3>
-              <p>Harvested during the mustard flowering season from Hanumangarh, Rajasthan, this honey has a pleasant floral aroma and naturally rich sweetness.</p>
-              <p class="product-card__origin"><strong>Origin:</strong> Hanumangarh, Rajasthan</p>
-            </div>
-          </article>
-
-          <article class="product-card reveal">
-            <div class="product-card__image">
-              <img src="assets/honey-main.png" alt="Dark Forest Honey jar" loading="lazy">
-              <div class="product-card__badges">
-                <span class="badge badge--region">Himachal Pradesh</span>
-                <span class="badge badge--raw">Raw &amp; Unprocessed</span>
-                <span class="badge badge--premium">Premium</span>
-              </div>
-            </div>
-            <div class="product-card__body">
-              <h3>Dark Forest Honey</h3>
-              <p>Collected from the forests of Himachal Pradesh, this premium honey is known for its deep amber color, bold flavor, and distinctive forest aroma.</p>
-              <p class="product-card__origin"><strong>Origin:</strong> Himachal Pradesh</p>
-            </div>
-          </article>
-        </div>
-      </div>
-    </section>
-
     <!-- 3D jar journey: Multiflora → Mustard (one GLB, label swapped) -->
-    <section class="section jar-journey" id="jar-journey" aria-label="Meet our honey jars">
-      <div class="jar-journey__bg jar-journey__bg--a" aria-hidden="true"></div>
-      <div class="jar-journey__bg jar-journey__bg--b" aria-hidden="true"></div>
+    <section class="section jar-journey" id="jar-journey" aria-label="Our honey collection">
+      <h2 class="visually-hidden">Our Honey Collection</h2>
       <div class="container">
         <div class="journey-row journey-row--right" data-variety="multiflora">
+          <div class="journey-row__bg journey-row__bg--multiflora" aria-hidden="true"></div>
           <div class="journey-row__text reveal">
+            <span class="journey-row__count">Honey Collection · 01 / 05</span>
             <span class="journey-row__kicker">Himachal Pradesh &amp; Punjab</span>
             <h3>Multiflora Honey</h3>
             <p>Collected from the diverse flowers of Himachal Pradesh and Punjab, Multiflora Honey offers a naturally rich floral aroma and balanced sweetness, making it ideal for everyday use.</p>
@@ -181,17 +107,18 @@
               <li>Balanced sweetness</li>
             </ul>
           </div>
-          <div class="journey-slot" id="jar-slot-a" aria-hidden="true">
+          <div class="journey-slot" id="jar-slot-0" aria-hidden="true">
             <img class="journey-slot__fallback" src="assets/multiflora-front.png" alt="" loading="lazy">
           </div>
-          <p class="journey-hint" aria-hidden="true">Swipe the jar to turn it · Scroll for Mustard</p>
+          <p class="journey-hint" aria-hidden="true">Swipe the jar to turn it · Scroll for the next honey</p>
         </div>
-
         <div class="journey-row journey-row--left" data-variety="mustard">
-          <div class="journey-slot" id="jar-slot-b" aria-hidden="true">
+          <div class="journey-row__bg journey-row__bg--mustard" aria-hidden="true"></div>
+          <div class="journey-slot" id="jar-slot-1" aria-hidden="true">
             <img class="journey-slot__fallback" src="assets/mustard-front.jpeg" alt="" loading="lazy">
           </div>
           <div class="journey-row__text reveal">
+            <span class="journey-row__count">Honey Collection · 02 / 05</span>
             <span class="journey-row__kicker">Hanumangarh, Rajasthan</span>
             <h3>Mustard Honey</h3>
             <p>Harvested during the mustard flowering season from Hanumangarh, Rajasthan, this honey has a pleasant floral aroma and naturally rich sweetness.</p>
@@ -202,7 +129,58 @@
             </ul>
           </div>
         </div>
-        <p class="jar-journey__credit journey-row__credit">Field photos: <a href="https://unsplash.com/photos/a-field-of-colorful-wildflowers-in-green-grass-gcrCoE1JJPk" target="_blank" rel="noopener">Cai Fang</a> and <a href="https://unsplash.com/photos/a-field-full-of-yellow-flowers-under-a-blue-sky-Mdeo-WHr5j4" target="_blank" rel="noopener">Mukesh Naik</a> on Unsplash</p>
+        <div class="journey-row journey-row--right" data-variety="kashmiri-acacia">
+          <div class="journey-row__bg journey-row__bg--kashmiri-acacia" aria-hidden="true"></div>
+          <div class="journey-row__text reveal">
+            <span class="journey-row__count">Honey Collection · 03 / 05</span>
+            <span class="journey-row__kicker">Kashmir</span>
+            <h3>Kashmiri Acacia Honey</h3>
+            <p>Collected from Acacia blossoms in Kashmir, this honey features a light golden color, delicate floral aroma, and a smooth, mild taste.</p>
+            <ul class="journey-row__facts">
+              <li>Raw &amp; unprocessed</li>
+              <li>Light golden colour</li>
+              <li>Smooth, mild taste</li>
+            </ul>
+          </div>
+          <div class="journey-slot" id="jar-slot-2" aria-hidden="true">
+            <img class="journey-slot__fallback" src="assets/kashmiri-acacia-front.png" alt="" loading="lazy">
+          </div>
+        </div>
+        <div class="journey-row journey-row--left" data-variety="ajwain">
+          <div class="journey-row__bg journey-row__bg--ajwain" aria-hidden="true"></div>
+          <div class="journey-slot" id="jar-slot-3" aria-hidden="true">
+            <img class="journey-slot__fallback" src="assets/honey-main.png" alt="" loading="lazy">
+          </div>
+          <div class="journey-row__text reveal">
+            <span class="journey-row__count">Honey Collection · 04 / 05</span>
+            <span class="journey-row__kicker">Ajwain blossoms</span>
+            <h3>Ajwain Honey</h3>
+            <p>Gathered from the tiny white blossoms of ajwain (carom) fields, this honey carries a warm, gently herbal note alongside its natural sweetness.</p>
+            <ul class="journey-row__facts">
+              <li>Raw &amp; unprocessed</li>
+              <li>Warm herbal note</li>
+              <li>Naturally sweet</li>
+            </ul>
+          </div>
+        </div>
+        <div class="journey-row journey-row--right" data-variety="jamun">
+          <div class="journey-row__bg journey-row__bg--jamun" aria-hidden="true"></div>
+          <div class="journey-row__text reveal">
+            <span class="journey-row__count">Honey Collection · 05 / 05</span>
+            <span class="journey-row__kicker">Jamun blossoms</span>
+            <h3>Jamun Honey</h3>
+            <p>Gathered from the blossoms of jamun trees, this honey has a deeper colour and a rich, slightly tangy flavour.</p>
+            <ul class="journey-row__facts">
+              <li>Raw &amp; unprocessed</li>
+              <li>Deeper colour</li>
+              <li>Rich, tangy flavour</li>
+            </ul>
+          </div>
+          <div class="journey-slot" id="jar-slot-4" aria-hidden="true">
+            <img class="journey-slot__fallback" src="assets/honey-main.png" alt="" loading="lazy">
+          </div>
+        </div>
+        <p class="jar-journey__credit">Field photos on Unsplash: <a href="https://unsplash.com/photos/a-field-of-colorful-wildflowers-in-green-grass-gcrCoE1JJPk" target="_blank" rel="noopener">Cai Fang</a>, <a href="https://unsplash.com/photos/a-field-full-of-yellow-flowers-under-a-blue-sky-Mdeo-WHr5j4" target="_blank" rel="noopener">Mukesh Naik</a>, <a href="https://unsplash.com/photos/white-flowers-bloom-against-a-bright-blue-sky-N-N03y0sJXk" target="_blank" rel="noopener">Csaba Gyulavári</a>, <a href="https://unsplash.com/photos/a-field-full-of-white-flowers-and-grass-9m3rEj2lTog" target="_blank" rel="noopener">Nicole Geri</a>, <a href="https://unsplash.com/photos/vendor-selling-jamun-fruit-at-market-QC8AIqrWZoM" target="_blank" rel="noopener">Govind M</a></p>
       </div>
       <canvas class="jar-canvas" id="jar-canvas" aria-hidden="true"></canvas>
     </section>
@@ -569,7 +547,7 @@
         <h4>Quick Links</h4>
         <ul>
           <li><a href="#about">About</a></li>
-          <li><a href="#honey">Products</a></li>
+          <li><a href="#jar-journey">Products</a></li>
           <li><a href="#retail">Retail Partner</a></li>
           <li><a href="#gallery">Gallery</a></li>
           <li><a href="#contact">Contact</a></li>
