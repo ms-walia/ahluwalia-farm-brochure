@@ -20,6 +20,9 @@ const introSlot = document.getElementById('jar-slot-intro');
 const combSlot = document.getElementById('comb-slot');
 const HAS_INTRO = !!(introRow && introSlot);
 const COMB_URL = 'assets/3d/corner_comb.glb';
+const BEE_URL = 'assets/3d/bee.glb';
+const DROP_URL = 'assets/3d/droplet.glb';
+const introInner = document.getElementById('journey-intro-inner');
 
 // Honey look per variety (blended while the jar spins between cards)
 const HONEY = {
@@ -92,9 +95,10 @@ async function init() {
     res(t);
   }, undefined, rej));
 
-  const [gltf, combGltf, ...tex] = await Promise.all([
+  const opt = (url) => (HAS_INTRO ? new GLTFLoader().loadAsync(url).catch(() => null) : null);
+  const [gltf, combGltf, beeGltf, dropGltf, ...tex] = await Promise.all([
     new GLTFLoader().loadAsync(JAR_URL),
-    HAS_INTRO ? new GLTFLoader().loadAsync(COMB_URL).catch(() => null) : null,
+    opt(COMB_URL), opt(BEE_URL), opt(DROP_URL),
     ...KEYS.map((k) => loadTex(LABELS[k])),
   ]);
 
@@ -130,7 +134,7 @@ async function init() {
 
   // Neck: turn the thread ring into a real helix (its end step shows the turn) and give the
   // glass a slight hand-made unevenness so highlights travel round as the jar spins
-  const NECK_Y0 = 0.114, NECK_K = 0.72;
+  const NECK_Y0 = 0.114, NECK_K = 0.5;
   const NECK_DROP = (0.134 - NECK_Y0) * (1 - NECK_K);   // how much lower the rim (and the closed cap) sit
   function neckDetail(geo) {
     const p = geo.attributes.position, n = geo.attributes.normal;
@@ -305,7 +309,7 @@ async function init() {
     const cb = capMesh.geometry.boundingBox;
     const R = (cb.max.x - cb.min.x) / 2;
     const H = cb.max.y - cb.min.y;
-    const y0 = cb.min.y, top = cb.max.y;
+    const top = cb.max.y, y0 = top - (top - cb.min.y) * 0.7;   // shorter lug cap (~10 mm)
     const mm = 0.001;
     const prof = [
       [R - 0.6 * mm, y0], [R, y0 + 0.8 * mm],
@@ -477,84 +481,96 @@ async function init() {
     return { ...h, c: new THREE.Color(h.c), em: new THREE.Color(h.em), gcol: new THREE.Color(...h.gc) };
   });
 
-  // ---------- corner honeycomb (built in Blender) + bees + a proper honey drop ----------
-  const tmpV1 = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpV3 = new THREE.Vector3();
+  // ---------- corner honeycomb (real scanned comb, prepared in Blender) + bees + stretchy honey drop ----------
+  const tmpV1 = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
   let landed = false;
   const comb = new THREE.Group();          // origin = the comb's right-angle corner (top-right of the screen)
   comb.visible = false;
   scene.add(comb);
-  const COMB_W = 0.33;                     // comb width in its own units
-  const tips = [];
+  const COMB_W = 0.30;                     // comb width in its own units
   const crawlers = [];
   let flyer = null;
-  const honeyLook = { color: '#b55c0a', emissive: '#5a2202', emissiveIntensity: 0.6, roughness: 0.03, clearcoat: 1, clearcoatRoughness: 0.02, specularIntensity: 0.7, envMapIntensity: 0.4 };
+  const honeyLook = { color: '#c0640c', emissive: '#6a2a03', emissiveIntensity: 0.55, roughness: 0.03, clearcoat: 1, clearcoatRoughness: 0.02, specularIntensity: 0.8, envMapIntensity: 0.6 };
+  const tips = [];
   if (combGltf) {
-    const root = combGltf.scene;
-    const combObj = root.getObjectByName('CornerComb');
-    const beeSrc = root.getObjectByName('Bee');
+    const cm = combGltf.scene.getObjectByName('CornerComb');
+    // organic wax: subtle mottling so it doesn't look flat or plastic
+    const mottle = (sh, amt) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vOP;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvOP = position;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+        varying vec3 vOP;
+        float hh(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+        float nz(vec3 p){ vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(mix(hh(i), hh(i + vec3(1,0,0)), f.x), mix(hh(i + vec3(0,1,0)), hh(i + vec3(1,1,0)), f.x), f.y),
+                     mix(mix(hh(i + vec3(0,0,1)), hh(i + vec3(1,0,1)), f.x), mix(hh(i + vec3(0,1,1)), hh(i + vec3(1,1,1)), f.x), f.y), f.z); }`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          float m = nz(vOP * 260.0) * 0.6 + nz(vOP * 900.0) * 0.4;
+          diffuseColor.rgb *= 1.0 - ${amt.toFixed(2)} + m * ${(2 * amt).toFixed(2)};`);
+    };
     const waxMat = new THREE.MeshPhysicalMaterial({
-      color: '#eaa93a', emissive: '#b8680c', emissiveIntensity: 0.38, roughness: 0.34, envMapIntensity: 0.6,
-      clearcoat: 0.7, clearcoatRoughness: 0.15, side: THREE.DoubleSide,
+      color: '#e9a530', emissive: '#a5560a', emissiveIntensity: 0.4, roughness: 0.42, sheen: 0.4, sheenColor: new THREE.Color('#ffd27a'),
+      clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 0.6, side: THREE.DoubleSide,
     });
-    const honeyCellMat = new THREE.MeshPhysicalMaterial({ ...honeyLook, side: THREE.DoubleSide });
-    const capWaxMat = new THREE.MeshPhysicalMaterial({
-      color: '#f3dca0', emissive: '#a07a30', emissiveIntensity: 0.3, roughness: 0.5, side: THREE.DoubleSide,
+    waxMat.onBeforeCompile = (sh) => mottle(sh, 0.22);
+    waxMat.customProgramCacheKey = () => 'combWax';
+    const capMat = new THREE.MeshPhysicalMaterial({
+      color: '#f1d79c', emissive: '#7a5a1c', emissiveIntensity: 0.3, roughness: 0.55, envMapIntensity: 0.5, side: THREE.DoubleSide,
     });
-    combObj.traverse((o) => {
-      if (!o.isMesh) return;
-      const n = o.material && o.material.name;
-      o.material = n === 'Honey' ? honeyCellMat : n === 'CapWax' ? capWaxMat : n === 'Wax' ? waxMat : o.material;
-      if (o.name.startsWith('Drip') || o.parent?.name === 'CombDrips') o.material = honeyCellMat;
-    });
-    combObj.traverse((o) => { if (o.name.startsWith('DripTip')) tips.push(o); });
-    comb.add(combObj);
-    // bees: wing material, then clones that crawl on the comb and one that flies about
-    if (beeSrc) {
-      beeSrc.removeFromParent();
-      beeSrc.traverse((o) => {
-        if (o.isMesh && o.name.startsWith('BeeWing')) {
-          o.material = new THREE.MeshPhysicalMaterial({ color: '#e8f0f6', transparent: true, opacity: 0.38, roughness: 0.15, side: THREE.DoubleSide, depthWrite: false, iridescence: 0.6 });
-        }
-      });
-      const makeBee = () => {
-        const b = beeSrc.clone(true);
-        const wings = [b.getObjectByName('BeeWingL'), b.getObjectByName('BeeWingR')].filter(Boolean);
-        wings.forEach((w) => { w.userData.rx = w.rotation.x; });
-        return { obj: b, wings };
-      };
-      let sd = 3;
-      const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
-      for (let i = 0; i < 3; i++) {
-        const bee = makeBee();
-        const holder = new THREE.Group();           // lies on the comb face, heading = rotation.z
-        bee.obj.rotation.x = Math.PI / 2;           // back of the bee faces out of the comb
-        holder.add(bee.obj);
-        holder.scale.setScalar(1.15);
-        const p = { x: -0.05 - rnd() * 0.12, y: -0.03 - rnd() * 0.06, h: rnd() * 6.28, sp: 0.006 + rnd() * 0.006, turn: 0, ph: rnd() * 10 };
-        holder.position.set(p.x, p.y, 0.031);
-        comb.add(holder);
-        crawlers.push({ holder, bee, p });
+    capMat.onBeforeCompile = (sh) => mottle(sh, 0.18);
+    capMat.customProgramCacheKey = () => 'combCap';
+    const cellHoney = new THREE.MeshPhysicalMaterial({ ...honeyLook, envMapIntensity: 0.9, side: THREE.DoubleSide });
+    cm.traverse((o) => {
+      if (o.isMesh) {
+        const n = o.material && o.material.name;
+        o.material = n === 'Honey' ? cellHoney : n === 'CapWax' ? capMat : waxMat;
       }
-      flyer = makeBee();
-      flyer.obj.scale.setScalar(1.3);
-      comb.add(flyer.obj);
+      if (o.name.startsWith('DripTip')) tips.push(o);
+    });
+    comb.add(cm);
+  }
+  // bees (CC-BY model): three crawl on the comb, one flies about with fast wings
+  if (beeGltf) {
+    const src = beeGltf.scene.getObjectByName('BeeBody');
+    src.traverse((o) => {
+      if (o.isMesh && o.name.startsWith('BeeWing')) {
+        o.material = o.material.clone();
+        o.material.transparent = true; o.material.opacity = 0.55; o.material.depthWrite = false; o.material.side = THREE.DoubleSide;
+      }
+    });
+    const makeBee = () => {
+      const b = src.clone(true);
+      const wings = [b.getObjectByName('BeeWingL'), b.getObjectByName('BeeWingR')].filter(Boolean);
+      wings.forEach((w) => { w.userData.rz = w.rotation.z; });
+      return { obj: b, wings };
+    };
+    let sd = 3;
+    const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+    const BEE_S = 0.017;
+    for (let i = 0; i < 3; i++) {
+      const bee = makeBee();
+      const holder = new THREE.Group();
+      bee.obj.rotation.x = Math.PI / 2;            // back faces out of the comb, head points along -Y of the holder
+      bee.obj.scale.setScalar(BEE_S);
+      holder.add(bee.obj);
+      const p = { x: -0.04 - rnd() * 0.14, y: -0.025 - rnd() * 0.06, h: rnd() * 6.28, sp: 0.006 + rnd() * 0.005, turn: 0, ph: rnd() * 10 };
+      comb.add(holder);
+      crawlers.push({ holder, bee, p });
     }
+    flyer = makeBee();
+    flyer.obj.scale.setScalar(BEE_S * 1.1);
+    comb.add(flyer.obj);
   }
-  // proper honey drop: a teardrop that hangs on a thinning thread, snaps and falls
-  const dropMat = new THREE.MeshPhysicalMaterial({ ...honeyLook, transparent: true, opacity: 0.96 });
-  const tearPts = [];
-  for (let i = 0; i <= 24; i++) {
-    const a = (i / 24) * Math.PI;                    // bottom (0) to top (π)
-    const rr = Math.sin(a) * (1 - 0.55 * Math.pow(i / 24, 2.2));
-    const yy = -Math.cos(a) * (i / 24 > 0.5 ? 1 + 0.9 * (i / 24 - 0.5) * 2 : 1);
-    tearPts.push(new THREE.Vector2(Math.max(0, rr), yy));
-  }
-  const drop = new THREE.Mesh(new THREE.LatheGeometry(tearPts, 28), dropMat);
-  const thread = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 12, 1, true), dropMat);
-  drop.visible = thread.visible = false;
-  drop.renderOrder = thread.renderOrder = 2;
-  scene.add(drop, thread);
-  const UP = new THREE.Vector3(0, 1, 0);
+  // honey drop: the droplet model (origin at its top tip), honey-coloured, on a stretching strand
+  const dropMat = new THREE.MeshPhysicalMaterial({ ...honeyLook, transparent: true, opacity: 0.95 });
+  let dropGeo = null;
+  if (dropGltf) dropGltf.scene.traverse((o) => { if (o.isMesh && !dropGeo && o.name !== 'Floor' && o.name !== 'Cube') dropGeo = o.geometry; });
+  const drop = new THREE.Mesh(dropGeo || new THREE.SphereGeometry(0.35, 24, 18).translate(0, -0.6, 0), dropMat);
+  const strand = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 14, 1, true), dropMat);
+  const stub = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), dropMat);   // honey gathered at the comb's edge
+  drop.visible = strand.visible = stub.visible = false;
+  drop.renderOrder = strand.renderOrder = 2;
+  scene.add(drop, strand, stub);
 
   // ---------- layout helpers ----------
   let vw = window.innerWidth;
@@ -689,7 +705,7 @@ async function init() {
     const e = inIntro ? 0 : ease(progress - seg);
     const A = slotInfo(inIntro ? introSlot : slots[seg]);
     const B = slotInfo(inIntro ? slots[0] : slots[seg + 1]);
-    const m = inIntro ? ease(tI) : e;
+    const m = inIntro ? ease(clamp01((tI - 0.5) / 0.5)) : e;
 
     // Screen position: blend between the two live slot centres along an S-curve
     const sx = A.x + (B.x - A.x) * m;
@@ -806,105 +822,108 @@ async function init() {
 
     // ---- intro: lid screws on as you scroll; drop falls from the honeycomb into the jar ----
     if (capLive) {
-      const c = HAS_INTRO ? THREE.MathUtils.smoothstep(tI, 0.42, 0.88) : 1;
+      const c = HAS_INTRO ? THREE.MathUtils.smoothstep(tI, 0.48, 0.92) : 1;
       const k1 = ease(clamp01(c / 0.45)), k2 = clamp01((c - 0.45) / 0.55);
       capLive.position.set(capBase.x - 0.09 * (1 - k1), capBase.y + 0.018 * (1 - k2) - 0.012 * (1 - k1), capBase.z + 0.01 * (1 - k1));
-      capLive.rotation.set(0, -(1 - k2) * TAU * 1.25, 0.35 * (1 - k1));
+      capLive.rotation.set(0.3 * (1 - k1), -(1 - k2) * TAU * 1.25, 0.12 * (1 - k1));
     }
-    if (HAS_INTRO && combGltf) {
-      // comb sits in the top-right corner of the intro card (under the site header)
-      const ir = introRow.getBoundingClientRect();
+    if (HAS_INTRO) {
+      // comb sits in the top-right corner of the (sticky) intro screen, under the site header
+      const ir = (introInner || introRow).getBoundingClientRect();
       const headerH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-height')) || 80;
-      const cy = ir.top + headerH;
+      const cy = ir.top + headerH - 6;
       const showComb = ir.bottom > 0 && cy < vh;
+      const wPx = vw < 768 ? vw * 0.62 : Math.min(vw * 0.42, 600);
       comb.visible = showComb;
-      const wPx = vw < 768 ? vw * 0.78 : Math.min(vw * 0.46, 660);
       if (showComb) {
-        comb.position.set((vw / 2) * u, -(cy - vh / 2) * u, 0);
+        comb.position.set((vw / 2 + 4) * u, -(cy - vh / 2) * u, 0);
         comb.scale.setScalar((wPx * u) / COMB_W);
-        comb.rotation.set(0.1, 0.22, 0);
+        comb.rotation.set(0.12, 0.25, 0);
         comb.updateMatrixWorld(true);
-        // bees crawl slowly over the comb; wings twitch now and then
         for (const c of crawlers) {
           const p = c.p;
-          p.turn += (Math.random() - 0.5) * 2.5 * dt;
-          p.turn = THREE.MathUtils.clamp(p.turn, -1.2, 1.2);
+          p.turn = THREE.MathUtils.clamp(p.turn + (Math.random() - 0.5) * 2.5 * dt, -1.2, 1.2);
           p.h += p.turn * dt;
-          const go = 0.5 + 0.5 * Math.sin(t * 0.7 + p.ph);       // stop-and-go walking
-          p.x += Math.cos(p.h) * p.sp * go * dt;
-          p.y += Math.sin(p.h) * p.sp * go * dt;
-          // stay well inside the triangle
-          if ((-p.x) / 0.27 + (-p.y) / 0.19 > 0.8 || p.x > -0.02 || p.y > -0.015) {
-            p.h = Math.atan2(-0.06 - p.y, -0.09 - p.x);
+          const go = Math.max(0, Math.sin(t * 0.6 + p.ph));          // walk, pause, walk
+          p.x += Math.sin(p.h) * p.sp * go * dt;
+          p.y += -Math.cos(p.h) * p.sp * go * dt;
+          // keep to the comb: inside the corner triangle, away from the edges
+          if ((-p.x) / 0.27 + (-p.y) / 0.2 > 0.78 || p.x > -0.02 || p.y > -0.015) {
+            p.h = Math.atan2(-0.1 - p.x, -(-0.05 - p.y));
           }
-          c.holder.position.set(p.x, p.y, 0.031);
+          c.holder.position.set(p.x, p.y, 0.036);
           c.holder.rotation.z = p.h;
-          c.holder.position.z = 0.031 + Math.sin(t * 9 + p.ph) * 0.0002 * go;
           const flick = Math.max(0, Math.sin(t * 1.3 + p.ph * 3) - 0.85) * 6;
-          c.bee.wings.forEach((w, k) => { w.rotation.x = w.userData.rx + (k ? -1 : 1) * Math.sin(t * 60) * 0.35 * flick; });
+          c.bee.wings.forEach((w, k) => { w.rotation.z = w.userData.rz + (k ? -1 : 1) * Math.sin(t * 60) * 0.3 * flick; });
         }
         if (flyer) {
-          // a lazy figure-of-eight in front of the comb, wings beating fast
-          const fx = -0.17 + Math.sin(t * 0.55) * 0.11, fy = -0.15 + Math.sin(t * 1.1) * 0.05, fz = 0.07 + Math.cos(t * 0.55) * 0.03;
-          const vx = Math.cos(t * 0.55) * 0.06, vy = Math.cos(t * 1.1) * 0.055;
-          flyer.obj.position.set(fx, fy + Math.sin(t * 13) * 0.0015, fz);
-          flyer.obj.rotation.y = vx >= 0 ? 0.25 : Math.PI - 0.25;
-          flyer.obj.rotation.z = THREE.MathUtils.clamp(vy * 4, -0.5, 0.5) * (vx >= 0 ? 1 : -1);
-          flyer.wings.forEach((w, k) => { w.rotation.x = w.userData.rx + (k ? -1 : 1) * Math.sin(t * 150) * 0.9; });
+          // a lazy loop below the comb, turning to face where it flies, wings a blur
+          const a = t * 0.5;
+          const fx = -0.17 + Math.sin(a) * 0.09, fy = -0.17 + Math.sin(a * 2) * 0.025, fz = 0.08 + Math.cos(a) * 0.05;
+          const vx = Math.cos(a) * 0.35, vz = -Math.sin(a) * 0.25;
+          flyer.obj.position.set(fx, fy + Math.sin(t * 11) * 0.002, fz);
+          flyer.obj.rotation.set(0, Math.atan2(vx, vz), 0);
+          flyer.wings.forEach((w, k) => { w.rotation.z = w.userData.rz + (k ? -1 : 1) * Math.sin(t * 150) * 0.8; });
         }
       }
-      // pick the drip on the comb edge that hangs nearest above the jar's mouth
-      const mouth = jar.localToWorld(tmpV2.set(0, FILL_Y, 0));
+      // ---- the drop: grows as it sags on a stretching strand, the strand thins and breaks
+      //      about halfway, then the drop falls the rest of the way into the jar ----
+      const mouth = jar.localToWorld(tmpV2.set(0, 0.124, 0));
       let tipObj = null, best = 1e9;
       for (const tp of tips) {
-        const w = tp.getWorldPosition(tmpV3);
-        const dd = Math.abs(w.x - mouth.x) + (w.y < mouth.y ? 1e3 : 0);
+        const w = tp.getWorldPosition(tmpV1);
+        const dd = Math.abs(w.x - mouth.x) + (w.y < mouth.y + 30 * u ? 1e3 : 0);
         if (dd < best) { best = dd; tipObj = tp; }
       }
-      const d = clamp01((tI - 0.04) / 0.36);
-      const r = s * 0.0042;
-      drop.visible = thread.visible = false;
-      if (inIntro && showComb && tipObj) {
-        const tip = tipObj.getWorldPosition(tmpV1);
-        const hang = (g, neck) => {
-          // teardrop hanging below the tip on a honey thread that thins as it stretches
-          const stretch = 1 + 1.4 * neck;
-          drop.visible = true;
-          drop.scale.set(r * g, r * g * (1 + 0.35 * neck), r * g);
-          const gap = r * (0.3 + 3.2 * neck) * g;
-          drop.position.set(tip.x, tip.y - gap - r * g * 1.9, tip.z);
-          const tr = r * g * (0.42 - 0.34 * neck);
-          if (tr > 0.0001) {
-            thread.visible = true;
-            const len = gap + r * g * 0.6;
-            thread.scale.set(tr, len, tr);
-            thread.position.set(tip.x, tip.y - len / 2, tip.z);
-          }
-          void stretch;
-        };
-        if (dir >= 0) {
-          if (d > 0.01 && d < 0.38) {
-            const g = Math.min(1, d / 0.2);
-            hang(g, clamp01((d - 0.12) / 0.26));             // grows, then stretches on its neck
-          } else if (d >= 0.38 && d < 1) {
-            const f = (d - 0.38) / 0.62;
+      const tip = tipObj ? tipObj.getWorldPosition(tmpV1) : tmpV1.set(mouth.x, mouth.y + 200 * u, 0);
+      // the jar slides under the drip, so the drop lands in the mouth
+      const d = clamp01((tI - 0.03) / 0.42);
+      const R = s * 0.02;                       // droplet scale (model is 1 unit tall)
+      drop.visible = strand.visible = stub.visible = false;
+      if (inIntro && showComb) {
+        const span = tip.y - mouth.y;
+        const BREAK = 0.6;
+        stub.visible = true;
+        stub.scale.set(R * 0.28, R * 0.18, R * 0.28);
+        stub.position.copy(tip);
+        if (dir >= 0 && d > 0.005) {
+          if (d < BREAK) {
+            const k = d / BREAK;                               // 0..1 while it sags
+            const g = 0.35 + 0.65 * k;                          // drop collects more honey as it goes
+            const L = span * 0.5 * Math.pow(k, 1.3);            // strand reaches about halfway
             drop.visible = true;
-            drop.scale.set(r * 0.92, r * (1.15 - 0.15 * f), r * 0.92);
-            drop.position.copy(tip).setY(tip.y - r * 5.5).lerp(mouth, f * f);
-            // the snapped thread springs back up into the comb
-            const back = 1 - clamp01(f / 0.25);
+            drop.scale.set(R * g, R * g * (1 + 0.5 * k), R * g);
+            drop.position.set(tip.x, tip.y - L, tip.z);
+            const sr = R * (0.16 - 0.145 * Math.pow(k, 0.8));   // strand gets really thin
+            if (L > 0.0001) {
+              strand.visible = true;
+              strand.scale.set(sr, L + R * 0.05, sr);
+              strand.position.set(tip.x, tip.y - L / 2, tip.z);
+            }
+          } else if (d < 1) {
+            const f = (d - BREAK) / (1 - BREAK);
+            const y0 = tip.y - span * 0.5;
+            drop.visible = true;
+            drop.scale.set(R, R * (1.5 - 0.35 * f), R);
+            drop.position.set(tip.x + (mouth.x - tip.x) * f * f, y0 - (y0 - mouth.y) * f * f, tip.z + (mouth.z - tip.z) * f * f);
+            // the cut strand: upper part shrinks back into the honey on the comb
+            const back = 1 - clamp01(f / 0.3);
             if (back > 0.02) {
-              thread.visible = true;
-              const len = r * 3 * back;
-              thread.scale.set(r * 0.08, len, r * 0.08);
-              thread.position.set(tip.x, tip.y - len / 2, tip.z);
+              const L = span * 0.5 * back;
+              strand.visible = true;
+              strand.scale.set(R * 0.012, L, R * 0.012);
+              strand.position.set(tip.x, tip.y - L / 2, tip.z);
             }
           }
-          if (d >= 1 && !landed) { landed = true; tiltV.x += 1.4; tiltV.y += 0.6; }
-        } else {
-          // scrolling back: a fresh drop gathers at the tip, ready to fall again
-          const g = clamp01((1 - d) / 0.7);
-          if (g > 0.02) hang(g, 0);
+          if (d >= 1 && !landed) { landed = true; tiltV.x += 1.6; tiltV.y += 0.7; }
+        } else if (dir < 0) {
+          // scrolling back: a fresh small drop gathers at the comb, ready to fall again
+          const g = 0.35 * clamp01((1 - d) / 0.5);
+          if (g > 0.02) {
+            drop.visible = true;
+            drop.scale.set(R * g, R * g, R * g);
+            drop.position.copy(tip);
+          }
         }
         if (d < 0.98) landed = false;
       }
