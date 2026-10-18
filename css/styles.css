@@ -1285,3 +1285,145 @@ box-shadow: var(--shadow-sm);
     transform: none;
   }
 }
+
+/* ============================================
+   3D jar journey (Multiflora → Mustard)
+   ============================================ */
+.jar-journey {
+  position: relative;
+  background:
+    radial-gradient(60% 40% at 85% 20%, rgba(212, 160, 23, 0.10), transparent 70%),
+    radial-gradient(60% 40% at 15% 85%, rgba(46, 94, 59, 0.07), transparent 70%),
+    var(--cream);
+  overflow: clip;
+}
+
+.journey-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: clamp(2rem, 6vw, 5rem);
+  min-height: min(78vh, 720px);
+}
+
+.journey-row__text {
+  max-width: 480px;
+}
+
+.journey-row--right .journey-row__text { justify-self: end; }
+.journey-row--left .journey-row__text { justify-self: start; }
+
+.journey-row__kicker {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--honey-gold);
+  margin-bottom: 0.75rem;
+}
+
+.journey-row__text h3 {
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 4.2vw, 3rem);
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--forest-green);
+  margin-bottom: 1rem;
+}
+
+.journey-row__text p {
+  color: rgba(43, 43, 43, 0.75);
+  margin-bottom: 1.5rem;
+}
+
+.journey-row__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.journey-row__facts li {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(212, 160, 23, 0.12);
+  color: var(--warm-brown);
+}
+
+.journey-slot {
+  position: relative;
+  height: min(62vh, 560px);
+  width: 100%;
+}
+
+.journey-slot__fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: opacity 0.6s ease;
+}
+
+.jar-journey.is-3d .journey-slot__fallback {
+  opacity: 0;
+}
+
+.journey-gap {
+  height: 55vh;
+  display: grid;
+  place-items: center;
+}
+
+.journey-gap__line {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: clamp(1.25rem, 2.4vw, 1.75rem);
+  color: rgba(139, 105, 20, 0.6);
+}
+
+.jar-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.jar-journey.is-3d.in-view .jar-canvas {
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .journey-row {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    gap: 1.5rem;
+    text-align: center;
+  }
+
+  .journey-row__text,
+  .journey-row--right .journey-row__text,
+  .journey-row--left .journey-row__text {
+    justify-self: center;
+  }
+
+  .journey-row__facts {
+    justify-content: center;
+  }
+
+  /* jar always above its text on phones */
+  .journey-row--right .journey-slot { order: -1; }
+
+  .journey-slot {
+    height: 46vh;
+  }
+
+  .journey-gap {
+    height: 35vh;
+  }
+}

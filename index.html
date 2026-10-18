@@ -165,6 +165,54 @@
       </div>
     </section>
 
+    <!-- 3D jar journey: Multiflora → Mustard (one GLB, label swapped) -->
+    <section class="section jar-journey" id="jar-journey" aria-label="Meet our honey jars">
+      <div class="container">
+        <div class="section-header reveal">
+          <span class="section-label">Meet the Jar</span>
+          <h2 class="section-title">One Jar, Many Blossoms</h2>
+          <p class="section-desc">Scroll to turn the jar and travel from the wildflowers of Punjab to the mustard fields of Rajasthan.</p>
+        </div>
+
+        <div class="journey-row journey-row--right" data-variety="multiflora">
+          <div class="journey-row__text reveal">
+            <span class="journey-row__kicker">Himachal Pradesh &amp; Punjab</span>
+            <h3>Multiflora Honey</h3>
+            <p>Collected from the diverse flowers of Himachal Pradesh and Punjab, Multiflora Honey offers a naturally rich floral aroma and balanced sweetness, making it ideal for everyday use.</p>
+            <ul class="journey-row__facts">
+              <li>Raw &amp; unprocessed</li>
+              <li>Rich floral aroma</li>
+              <li>Balanced sweetness</li>
+            </ul>
+          </div>
+          <div class="journey-slot" id="jar-slot-a" aria-hidden="true">
+            <img class="journey-slot__fallback" src="assets/multiflora-front.png" alt="" loading="lazy">
+          </div>
+        </div>
+
+        <div class="journey-gap" aria-hidden="true">
+          <p class="journey-gap__line">Same care, a different bloom.</p>
+        </div>
+
+        <div class="journey-row journey-row--left" data-variety="mustard">
+          <div class="journey-slot" id="jar-slot-b" aria-hidden="true">
+            <img class="journey-slot__fallback" src="assets/mustard-front.jpeg" alt="" loading="lazy">
+          </div>
+          <div class="journey-row__text reveal">
+            <span class="journey-row__kicker">Hanumangarh, Rajasthan</span>
+            <h3>Mustard Honey</h3>
+            <p>Harvested during the mustard flowering season from Hanumangarh, Rajasthan, this honey has a pleasant floral aroma and naturally rich sweetness.</p>
+            <ul class="journey-row__facts">
+              <li>Raw &amp; unprocessed</li>
+              <li>Pleasant floral aroma</li>
+              <li>Naturally rich sweetness</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <canvas class="jar-canvas" id="jar-canvas" aria-hidden="true"></canvas>
+    </section>
+
     <!-- Poultry -->
     <section class="section poultry" id="poultry">
       <div class="container poultry__grid">
@@ -548,5 +596,14 @@
   </footer>
 
   <script src="js/main.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="js/jar3d.js"></script>
 </body>
 </html>
