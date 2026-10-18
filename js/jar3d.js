@@ -87,7 +87,40 @@ async function init() {
   // ---- jar dimensions (GLB units = metres, Y up) ----
   const FILL_Y = 0.100;          // honey surface: middle of the upper glass bulge
   const HONEY_HALF = 0.041;      // inner half-width of the honey at that height
-  const HONEY_R = 0.0072;        // inner corner radius
+  const GLASS_WALL = 0.0026;     // honey pushed out by the modelled wall thickness
+  const HONEY_R = 0.0072 + GLASS_WALL;  // corner radius of the honey surface
+
+  // Keep only the outward-facing triangles of the glass shell (drops the inner wall)
+  function outerShellOnly(geo) {
+    const g = geo.index ? geo : geo.clone();
+    const pos = g.attributes.position;
+    const idx = g.index ? g.index.array : [...Array(pos.count).keys()];
+    g.computeBoundingBox();
+    const yc = (g.boundingBox.min.y + g.boundingBox.max.y) / 2;
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    const n = new THREE.Vector3(), ctr = new THREE.Vector3();
+    const keep = [];
+    for (let i = 0; i < idx.length; i += 3) {
+      a.fromBufferAttribute(pos, idx[i]); b.fromBufferAttribute(pos, idx[i + 1]); c.fromBufferAttribute(pos, idx[i + 2]);
+      n.subVectors(c, b).cross(ctr.subVectors(a, b));
+      ctr.addVectors(a, b).add(c).divideScalar(3); ctr.y -= yc;
+      if (n.dot(ctr) > 0) keep.push(idx[i], idx[i + 1], idx[i + 2]);
+    }
+    const out = g.clone();
+    out.setIndex(keep);
+    return out;
+  }
+
+  // Move every vertex out along its normal (honey meets the outer glass)
+  function pushOut(geo, d) {
+    const out = geo.clone();
+    const p = out.attributes.position, nr = out.attributes.normal;
+    for (let i = 0; i < p.count; i++) {
+      p.setXYZ(i, p.getX(i) + nr.getX(i) * d, p.getY(i) + nr.getY(i) * d, p.getZ(i) + nr.getZ(i) * d);
+    }
+    out.computeBoundingBox(); out.computeBoundingSphere();
+    return out;
+  }
 
   // Honey surface clipping plane (world space, updated every frame)
   const honeyPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
@@ -117,6 +150,7 @@ async function init() {
     clearcoat: 0.6,
     clearcoatRoughness: 0.18,
     envMapIntensity: 1.25,
+    side: THREE.DoubleSide,       // near and far wall, each a single thin layer
     depthWrite: false,
   });
 
@@ -145,9 +179,11 @@ async function init() {
       m.polygonOffsetUnits = -2;
       o.renderOrder = 5;
     } else if (m.name === 'Glass') {
+      o.geometry = outerShellOnly(o.geometry);   // one thin layer of glass, not two
       o.material = glassMat;
       o.renderOrder = 3;
     } else if (m.name.startsWith('Honey')) {
+      o.geometry = pushOut(o.geometry, GLASS_WALL); // honey fills right up to the thin glass
       o.material = honeyMat;
     } else if (m.name === 'GoldCap') {
       capMesh = o;
@@ -187,7 +223,7 @@ async function init() {
   // Honey surface (a rounded-square sheet that stays level and wobbles)
   const surfShape = new THREE.Shape();
   {
-    const h = HONEY_HALF, r = HONEY_R;
+    const h = HONEY_HALF + GLASS_WALL, r = HONEY_R;
     surfShape.moveTo(-h + r, -h);
     surfShape.lineTo(h - r, -h); surfShape.quadraticCurveTo(h, -h, h, -h + r);
     surfShape.lineTo(h, h - r); surfShape.quadraticCurveTo(h, h, h - r, h);
