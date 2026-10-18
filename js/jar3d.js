@@ -19,7 +19,7 @@ const introRow = document.getElementById('journey-intro');
 const introSlot = document.getElementById('jar-slot-intro');
 const combSlot = document.getElementById('comb-slot');
 const HAS_INTRO = !!(introRow && introSlot);
-const COMB_URL = 'assets/3d/scan_comb.glb';
+const COMB_URL = 'assets/3d/corner_comb.glb';
 const BEE_URL = 'assets/3d/bee.glb';
 const DROP_URL = 'assets/3d/droplet.glb';
 const introInner = document.getElementById('journey-intro-inner');
@@ -134,7 +134,7 @@ async function init() {
 
   // Neck: turn the thread ring into a real helix (its end step shows the turn) and give the
   // glass a slight hand-made unevenness so highlights travel round as the jar spins
-  const NECK_Y0 = 0.114, NECK_K = 0.5;
+  const NECK_Y0 = 0.1185, NECK_K = 0.5;
   const NECK_DROP = (0.134 - NECK_Y0) * (1 - NECK_K);   // how much lower the rim (and the closed cap) sit
   function neckDetail(geo) {
     const p = geo.attributes.position, n = geo.attributes.normal;
@@ -255,7 +255,7 @@ async function init() {
       // over the label band keep the glass almost clear, so the print stays crisp
       float band = smoothstep(0.010, 0.014, vGY) * (1.0 - smoothstep(0.094, 0.099, vGY));
       float boost = mix(1.0, 0.18, band);
-      float neck = smoothstep(0.113, 0.116, vGY);          // soft frost so the neck doesn't vanish
+      float neck = smoothstep(0.117, 0.119, vGY);          // soft frost so the neck doesn't vanish
       diffuseColor.a = clamp(diffuseColor.a * mix(1.0, 0.4, band) + neck * 0.1 + (fr * 0.55 + dot(sp, vec3(0.3333)) * 0.9) * boost, 0.0, 0.9);
       #include <opaque_fragment>`);
   };
@@ -359,7 +359,7 @@ async function init() {
     capBase.y -= NECK_DROP;
     // a raised glass screw thread round the neck, visible when the lid is off
     {
-      const R = 0.0401, y0 = NECK_Y0 + 0.0022, PITCH = 0.0032, TURNS = 1.7;
+      const R = 0.0401, y0 = NECK_Y0 + 0.0008, PITCH = 0.0026, TURNS = 1.6;
       class Helix extends THREE.Curve {
         getPoint(t, out = new THREE.Vector3()) {
           const a = t * TURNS * Math.PI * 2;
@@ -492,6 +492,7 @@ async function init() {
   let flyer = null;
   const honeyLook = { color: '#c0640c', emissive: '#6a2a03', emissiveIntensity: 0.55, roughness: 0.03, clearcoat: 1, clearcoatRoughness: 0.02, specularIntensity: 0.8, envMapIntensity: 0.6 };
   const tips = [];
+  const spots = [];                          // cell rims the bees walk between (from Blender)
   if (combGltf) {
     const cm = combGltf.scene.getObjectByName('CornerComb');
     // organic wax: subtle mottling so it doesn't look flat or plastic
@@ -506,7 +507,8 @@ async function init() {
                      mix(mix(hh(i + vec3(0,0,1)), hh(i + vec3(1,0,1)), f.x), mix(hh(i + vec3(0,1,1)), hh(i + vec3(1,1,1)), f.x), f.y), f.z); }`)
         .replace('#include <color_fragment>', `#include <color_fragment>
           float m = nz(vOP * 260.0) * 0.6 + nz(vOP * 900.0) * 0.4;
-          diffuseColor.rgb *= 1.0 - ${amt.toFixed(2)} + m * ${(2 * amt).toFixed(2)};`);
+          diffuseColor.rgb *= 1.0 - ${amt.toFixed(2)} + m * ${(2 * amt).toFixed(2)};
+          diffuseColor.rgb *= mix(0.42, 1.0, smoothstep(0.004, 0.028, vOP.z));   // deeper in the cell = darker`);
     };
     const waxMat = new THREE.MeshPhysicalMaterial({
       color: '#e9a530', emissive: '#a5560a', emissiveIntensity: 0.4, roughness: 0.42, sheen: 0.4, sheenColor: new THREE.Color('#ffd27a'),
@@ -546,6 +548,7 @@ async function init() {
         o.material = o.material.map ? scanMat(o.material.map) : n === 'Honey' ? cellHoney : n === 'CapWax' ? capMat : waxMat;
       }
       if (o.name.startsWith('DripTip')) tips.push(o);
+      if (o.name.startsWith('BeeSpot')) spots.push(o.position.clone());
     });
     comb.add(cm);
   }
@@ -567,18 +570,22 @@ async function init() {
     let sd = 3;
     const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
     const BEE_S = 0.017;
-    for (let i = 0; i < 3; i++) {
+    const sizes = [1.25, 0.8, 1.05, 0.7];          // every bee a different size
+    const nB = spots.length ? sizes.length : 0;
+    for (let i = 0; i < nB; i++) {
       const bee = makeBee();
       const holder = new THREE.Group();
       bee.obj.rotation.x = Math.PI / 2;            // back faces out of the comb, head points along -Y of the holder
-      bee.obj.scale.setScalar(BEE_S);
+      bee.obj.scale.setScalar(BEE_S * sizes[i]);
       holder.add(bee.obj);
-      const p = { x: -0.04 - rnd() * 0.14, y: -0.025 - rnd() * 0.06, h: rnd() * 6.28, sp: 0.006 + rnd() * 0.005, turn: 0, ph: rnd() * 10 };
+      const start = spots[Math.floor(rnd() * spots.length)].clone();
+      const p = { pos: start, target: start.clone(), h: rnd() * 6.28, sp: (0.007 + rnd() * 0.006) / Math.sqrt(sizes[i]),
+                  wait: rnd() * 2, size: sizes[i], ph: rnd() * 10 };
       comb.add(holder);
       crawlers.push({ holder, bee, p });
     }
     flyer = makeBee();
-    flyer.obj.scale.setScalar(BEE_S * 1.1);
+    flyer.obj.scale.setScalar(BEE_S * 0.9);
     comb.add(flyer.obj);
   }
   // honey drop: the droplet model (origin at its top tip), honey-coloured, on a stretching strand
@@ -889,17 +896,26 @@ async function init() {
         comb.rotation.set(0.12, 0.25, 0);
         comb.updateMatrixWorld(true);
         for (const c of crawlers) {
+          // walk from cell to cell across the comb's surface, pausing now and then
           const p = c.p;
-          p.turn = THREE.MathUtils.clamp(p.turn + (Math.random() - 0.5) * 2.5 * dt, -1.2, 1.2);
-          p.h += p.turn * dt;
-          const go = Math.max(0, Math.sin(t * 0.6 + p.ph));          // walk, pause, walk
-          p.x += Math.sin(p.h) * p.sp * go * dt;
-          p.y += -Math.cos(p.h) * p.sp * go * dt;
-          // keep to the comb: inside the corner triangle, away from the edges
-          if ((-p.x) / 0.27 + (-p.y) / 0.2 > 0.78 || p.x > -0.02 || p.y > -0.015) {
-            p.h = Math.atan2(-0.1 - p.x, -(-0.05 - p.y));
+          const dxT = p.target.x - p.pos.x, dyT = p.target.y - p.pos.y, dist = Math.hypot(dxT, dyT);
+          let go = 0;
+          if (p.wait > 0) p.wait -= dt;
+          else if (dist < 0.003) {
+            p.wait = 0.6 + Math.random() * 2.5;
+            const near = spots.filter((q) => q.distanceTo(p.pos) < 0.07 && q.distanceTo(p.pos) > 0.01);
+            p.target = (near.length ? near[Math.floor(Math.random() * near.length)] : spots[Math.floor(Math.random() * spots.length)]).clone();
+          } else {
+            const want = Math.atan2(dxT, -dyT);
+            let dh = want - p.h; dh -= Math.round(dh / TAU) * TAU;
+            p.h += THREE.MathUtils.clamp(dh, -3 * dt, 3 * dt);
+            go = Math.abs(dh) < 0.6 ? 1 : 0.3;
+            const step = Math.min(dist, p.sp * go * dt);
+            p.pos.x += Math.sin(p.h) * step; p.pos.y += -Math.cos(p.h) * step;
+            p.pos.z += (p.target.z - p.pos.z) * Math.min(1, 4 * dt);
           }
-          c.holder.position.set(p.x, p.y, 0.036);
+          // feet on the cell rims: lift the body by its own leg height
+          c.holder.position.set(p.pos.x, p.pos.y, p.pos.z + 0.0085 * p.size + Math.sin(t * 14 + p.ph) * 0.0002 * go);
           c.holder.rotation.z = p.h;
           const flick = Math.max(0, Math.sin(t * 1.3 + p.ph * 3) - 0.85) * 6;
           c.bee.wings.forEach((w, k) => { w.rotation.z = w.userData.rz + (k ? -1 : 1) * Math.sin(t * 60) * 0.3 * flick; });
