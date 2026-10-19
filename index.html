@@ -224,6 +224,59 @@
       </div>
     </section>
 
+    <!-- Egg cartons (3D) -->
+    <section class="section jar-journey egg-journey" id="egg-cartons" aria-label="Our egg packs">
+      <div class="container">
+        <div class="journey-row journey-row--right egg-row" data-pack="12">
+          <div class="journey-row__bg journey-row__bg--eggs" aria-hidden="true"></div>
+          <div class="journey-row__text reveal">
+            <span class="journey-row__count">Cage-Free Eggs · 01 / 03</span>
+            <span class="journey-row__kicker">12 Eggs</span>
+            <h3>Pack of 12</h3>
+            <p>Two neat rows of six light-brown, cage-free eggs, sealed with our Ahluwalia Farm wrap. Tap the carton to tear the seal and open it.</p>
+            <ul class="journey-row__facts">
+              <li>2 × 6 tray</li>
+              <li>Sealed wrap label</li>
+              <li>Everyday pack</li>
+            </ul>
+          </div>
+          <div class="journey-slot egg-slot" id="egg-slot-12" aria-label="3D egg carton, tap to open" role="img"></div>
+          <p class="journey-hint" aria-hidden="true">Tap the carton to open it · Swipe to turn it · Scroll for the next pack</p>
+        </div>
+        <div class="journey-row journey-row--left egg-row" data-pack="25">
+          <div class="journey-row__bg journey-row__bg--eggs" aria-hidden="true"></div>
+          <div class="journey-slot egg-slot" id="egg-slot-25" aria-label="3D egg carton, tap to open" role="img"></div>
+          <div class="journey-row__text reveal">
+            <span class="journey-row__count">Cage-Free Eggs · 02 / 03</span>
+            <span class="journey-row__kicker">25 Eggs</span>
+            <h3>Pack of 25</h3>
+            <p>A square five-by-five tray for bigger kitchens. Clear on every side, so you can see each egg before you buy.</p>
+            <ul class="journey-row__facts">
+              <li>5 × 5 tray</li>
+              <li>Clear clamshell</li>
+              <li>Family pack</li>
+            </ul>
+          </div>
+        </div>
+        <div class="journey-row journey-row--right egg-row" data-pack="30">
+          <div class="journey-row__bg journey-row__bg--eggs" aria-hidden="true"></div>
+          <div class="journey-row__text reveal">
+            <span class="journey-row__count">Cage-Free Eggs · 03 / 03</span>
+            <span class="journey-row__kicker">30 Eggs</span>
+            <h3>Pack of 30</h3>
+            <p>Our largest tray: five rows of six fresh eggs from KVK-trained farms around Amritsar.</p>
+            <ul class="journey-row__facts">
+              <li>5 × 6 tray</li>
+              <li>Clear clamshell</li>
+              <li>Bulk pack</li>
+            </ul>
+          </div>
+          <div class="journey-slot egg-slot" id="egg-slot-30" aria-label="3D egg carton, tap to open" role="img"></div>
+        </div>
+      </div>
+      <canvas class="jar-canvas" id="egg-canvas" aria-hidden="true"></canvas>
+    </section>
+
     <!-- Why Choose Us -->
     <section class="section why" id="why">
       <div class="container">
@@ -586,5 +639,6 @@
     }
   </script>
   <script type="module" src="js/jar3d.js"></script>
+  <script type="module" src="js/eggs3d.js"></script>
 </body>
 </html>

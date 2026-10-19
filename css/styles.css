@@ -1626,3 +1626,11 @@ box-shadow: var(--shadow-sm);
 .jar-journey .journey-row.journey-intro { display: grid; grid-template-columns: 1fr; place-items: center; min-height: 100vh; min-height: 100svh; }
 .journey-intro__inner { position: static; height: auto; display: block; text-align: center; padding-top: var(--header-height, 80px); }
 .journey-intro__inner .journey-row__text { justify-self: center; margin: 0 auto; max-width: 560px; }
+
+/* Egg cartons (3D) */
+.journey-row__bg--eggs {
+  background:
+    radial-gradient(70% 55% at 70% 40%, rgba(212, 160, 23, 0.16), transparent 70%),
+    linear-gradient(180deg, #2b2214, #1f190f);
+}
+.egg-journey .egg-slot { cursor: pointer; }
