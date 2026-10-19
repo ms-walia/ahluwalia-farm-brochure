@@ -22,8 +22,9 @@
     .shop-hero p { max-width: 620px; margin: 0 auto; color: rgba(250,248,242,.8); }
     .sizes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(14px, 2.5vw, 28px); max-width: 1100px; margin: 36px auto 40px; padding: 0 16px; }
     .size-card { background: #faf8f2; color: #2b2b2b; border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 18px 40px rgba(0,0,0,.35); position: relative; }
-    .size-card__img { aspect-ratio: 1 / 1; display: grid; place-items: center; padding: 22px; background: radial-gradient(70% 60% at 50% 40%, #fff6dd, #f1e6c6); }
-    .size-card__img img { max-height: 100%; max-width: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 22px rgba(80,50,0,.18); }
+    .size-card__img { aspect-ratio: 1 / 1; display: grid; place-items: center; padding: 0; position: relative; background: radial-gradient(70% 60% at 50% 40%, #fff6dd, #f1e6c6); }
+    .size-card__img canvas { position: absolute; inset: 0; }
+    .size-card__img img { max-height: 80%; max-width: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 22px rgba(80,50,0,.18); }
     .size-card__img .jarlike { transition: transform .3s; }
     .size-card[data-size="250g"] .jarlike { transform: scale(.68); }
     .size-card[data-size="500g"] .jarlike { transform: scale(.82); }
@@ -63,8 +64,13 @@
       <nav id="others"></nav>
     </section>
   </main>
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+  </script>
   <script type="module">
     import { HONEY, inr } from './js/cart.js';
+    import { mountJar } from './js/jar-mini.js';
     const key = new URLSearchParams(location.search).get('v') || 'multiflora';
     const h = HONEY[key] || HONEY.multiflora;
     document.title = `Buy ${h.name} | Ahluwalia Farm`;
@@ -74,7 +80,7 @@
     document.getElementById('sizes').innerHTML = Object.entries(h.prices).map(([size, price], i) => `
       <article class="size-card" data-size="${size}">
         ${i === 2 ? '<span class="size-card__tag">BEST VALUE</span>' : ''}
-        <div class="size-card__img"><img class="jarlike" src="${img}" alt="${h.name} label"></div>
+        <div class="size-card__img" data-jar="${size}"><img class="jarlike" src="${img}" alt="${h.name} label"></div>
         <div class="size-card__body">
           <div class="size-card__size">${size}</div>
           <div class="size-card__name">${h.name}</div>
@@ -82,6 +88,14 @@
           <button class="size-card__btn" data-add='${JSON.stringify({ id: key + '-' + size, name: h.name, size, price })}'>Add to cart</button>
         </div>
       </article>`).join('');
+    const V = HONEY[key] ? key : 'multiflora';
+    const SCALE = { '250g': 0.72, '500g': 0.86, '1kg': 1 };
+    document.querySelectorAll('[data-jar]').forEach((el) => {
+      const size = el.dataset.jar;
+      mountJar(el, { variety: V, size, scale: SCALE[size] })
+        .then(() => { const im = el.querySelector('img'); if (im) im.remove(); })
+        .catch((e) => console.warn('jar', e));
+    });
     document.getElementById('others').innerHTML = Object.entries(HONEY).map(([k, v]) =>
       `<a href="shop.html?v=${k}" ${k === key ? 'aria-current="page"' : ''}>${v.name.replace(' Honey', '')}</a>`).join('');
   </script>

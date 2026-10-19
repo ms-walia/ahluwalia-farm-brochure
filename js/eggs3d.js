@@ -31,7 +31,7 @@ function init() {
   const rim = new THREE.DirectionalLight(0xffe0b0, 0.7); rim.position.set(3, 2, -3); scene.add(rim);
 
   const texLoader = new THREE.TextureLoader();
-  const tex = (url) => { const t = texLoader.load(url); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
+  const tex = (url) => { const t = texLoader.load(url); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); t.generateMipmaps = true; return t; };
   const wrapTex = tex('assets/eggs/wrap-12.jpg');
   wrapTex.wrapT = THREE.RepeatWrapping;
   const stickerTex = tex('assets/eggs/sticker-30.jpg');
@@ -51,8 +51,8 @@ function init() {
   };
   plastic.customProgramCacheKey = () => 'eggPlastic';
   const eggMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.72, envMapIntensity: 0.45 });
-  const stickerMat = new THREE.MeshPhysicalMaterial({ map: stickerTex, roughness: 0.45, clearcoat: 0.2, emissive: 0xffffff, emissiveMap: stickerTex, emissiveIntensity: 0.12 });
-  const wrapMat = new THREE.MeshPhysicalMaterial({ map: wrapTex, roughness: 0.5, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: wrapTex, emissiveIntensity: 0.1 });
+  const stickerMat = new THREE.MeshStandardMaterial({ map: stickerTex, roughness: 0.75, envMapIntensity: 0.25, emissive: 0xffffff, emissiveMap: stickerTex, emissiveIntensity: 0.32 });
+  const wrapMat = new THREE.MeshStandardMaterial({ map: wrapTex, roughness: 0.75, envMapIntensity: 0.25, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: wrapTex, emissiveIntensity: 0.3 });
 
   // ---------- shared geometry (metres) ----------
   const P = 0.05;              // cup pitch
@@ -119,7 +119,7 @@ function init() {
       const sc = 0.96 + rnd() * 0.08;
       m4.compose(new THREE.Vector3(x, -CUP_D + 0.0275 * sc, z), q, new THREE.Vector3(sc, sc, sc));
       eggs.setMatrixAt(i, m4);
-      col.setHSL(0.072 + rnd() * 0.012, 0.5 + rnd() * 0.1, 0.5 + rnd() * 0.06);   // light brown, each a little different
+      col.setHSL(0.06 + rnd() * 0.015, 0.55 + rnd() * 0.1, 0.44 + rnd() * 0.07);   // light brown, each a little different
       eggs.setColorAt(i, col);
     });
     g.add(eggs);
@@ -145,7 +145,7 @@ function init() {
 
   // wrap-around label for the 12 pack: a band round the middle, split where lid meets tray
   function buildWrap(c) {
-    const BW = 0.08;                         // band width along the carton
+    const BW = 0.115;                        // band width along the carton
     const top = 0.002 + DOME_H + 0.002, bot = -CUP_D - 0.006, zf = c.D / 2 + 0.001, zb = -c.D / 2 - 0.001;
     const hb = top - bot, L = 2 * hb + 2 * (zf - zb);
     const sTop = (top - 0) + (zf - zb) / 2;  // perimeter position of the top centre (start: back face at y = 0)
@@ -202,9 +202,14 @@ function init() {
   void stickerTex25;
   const display = new THREE.Group(); scene.add(display);
   const packs = [
-    { key: '30', carton: buildCarton(5, 6, { sticker: true }), rest: { p: [-0.02, 0.07, -0.16], r: [1.02, 0.08, 0] } },
-    { key: '25', carton: buildCarton(5, 5, { sticker: true }), rest: { p: [0.235, 0.0, -0.02], r: [0.92, -0.55, -0.12] } },
-    { key: '12', carton: buildCarton(2, 6, { wrap: true }),    rest: { p: [-0.05, -0.12, 0.1], r: [0.62, 0.12, 0.02] } },
+    // flat: lying on the counter, staggered diagonally like the gallery photo (biggest at the back)
+    // up:   tilted up so the label on top faces the viewer
+    { key: '30', carton: buildCarton(5, 6, { sticker: true }),
+      flat: { p: [-0.14, -0.06, -0.3], r: [0, 0.32, 0] },  up: { p: [-0.13, 0.11, -0.2], r: [1.18, 0.12, 0] } },
+    { key: '25', carton: buildCarton(5, 5, { sticker: true }),
+      flat: { p: [0.17, -0.06, -0.08], r: [0, 0.32, 0] },  up: { p: [0.2, 0.04, -0.06], r: [1.12, -0.22, 0] } },
+    { key: '12', carton: buildCarton(2, 6, { wrap: true }),
+      flat: { p: [-0.08, -0.06, 0.18], r: [0, 0.32, 0] },  up: { p: [-0.06, -0.15, 0.14], r: [1.05, 0.1, 0] } },
   ];
   // "open" pose: lid up, tray turned straight towards the viewer, brought forward
   const OPEN = { p: [0.02, -0.04, 0.34], r: [1.1, 0, 0] };
@@ -220,7 +225,7 @@ function init() {
   stage.appendChild(canvas);
   canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;';
   const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 20);
-  camera.position.set(0.03, 0.42, 1.25); camera.lookAt(0.03, -0.01, 0);
+  camera.position.set(0.02, 0.36, 1.18); camera.lookAt(0.02, -0.02, -0.04);
   function resize() {
     const r = stage.getBoundingClientRect();
     renderer.setSize(r.width, r.height, false); camera.aspect = r.width / Math.max(1, r.height);
@@ -285,6 +290,14 @@ function init() {
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
   const lerp = (a, b, t) => a + (b - a) * t;
 
+  function scrollLift() {
+    const r = stage.getBoundingClientRect();
+    // 0 while the stage is still low on the screen, 1 once it is centred
+    const c = r.top + r.height / 2;
+    return Math.min(1, Math.max(0, (vh0() * 0.95 - c) / (vh0() * 0.45)));
+  }
+  const vh0 = () => window.innerHeight;
+  addEventListener('scroll', () => { if (inView && !raf) raf = requestAnimationFrame(frame); }, { passive: true });
   function frame() {
     raf = 0;
     const now = performance.now(), dt = Math.min(0.05, (now - lastF) / 1000 || 0.016); lastF = now;
@@ -294,7 +307,10 @@ function init() {
       c.open += (c.target - c.open) * Math.min(1, dt * 5);
       pk.k += (c.target - pk.k) * Math.min(1, dt * 4);
       const k = ease(Math.min(1, Math.max(0, pk.k)));
-      const R = pk.rest, idle = Math.sin(t * 0.8 + pk.rest.p[0] * 20) * 0.01 * (1 - k);
+      // scroll: flat while the section comes in, tilting up as you scroll further
+      const lift = ease(scrollLift());
+      const R = { p: pk.flat.p.map((v, i) => lerp(v, pk.up.p[i], lift)), r: pk.flat.r.map((v, i) => lerp(v, pk.up.r[i], lift)) };
+      const idle = Math.sin(t * 0.8 + pk.flat.p[0] * 20) * 0.006 * (1 - k) * lift;
       pk.holder.position.set(lerp(R.p[0], OPEN.p[0], k), lerp(R.p[1], OPEN.p[1], k) + idle, lerp(R.p[2], OPEN.p[2], k));
       pk.holder.rotation.set(lerp(R.r[0], OPEN.r[0], k), lerp(R.r[1], OPEN.r[1], k), lerp(R.r[2], OPEN.r[2], k));
       // the other cartons step back a little while one is open
