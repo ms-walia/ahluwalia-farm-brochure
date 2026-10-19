@@ -26,11 +26,11 @@ const introInner = document.getElementById('journey-intro-inner');
 
 // Honey look per variety (blended while the jar spins between cards)
 const HONEY = {
-  'multiflora':      { c: '#7b3a0d', em: '#3a1503', ei: 0.5,  op: 0.93,  rough: 0.06, cc: 1.0, glow: 0.45, gc: [1.0, 0.55, 0.12], cloud: 0 },
-  'mustard':         { c: '#e6cc8e', em: '#6a5320', ei: 0.22, op: 0.99,  rough: 0.42, cc: 0.4, glow: 0.08, gc: [1.0, 0.92, 0.65], cloud: 1 },
-  'kashmiri-acacia': { c: '#e2a53a', em: '#a0560a', ei: 0.4,  op: 0.8,   rough: 0.04, cc: 1.0, glow: 0.65, gc: [1.0, 0.7, 0.2],   cloud: 0 },
-  'ajwain':          { c: '#b5650f', em: '#6e2c03', ei: 0.4,  op: 0.9,   rough: 0.06, cc: 1.0, glow: 0.5,  gc: [1.0, 0.58, 0.12], cloud: 0 },
-  'jamun':           { c: '#5a210a', em: '#2a0c02', ei: 0.5,  op: 0.95,  rough: 0.07, cc: 1.0, glow: 0.32, gc: [1.0, 0.45, 0.15], cloud: 0 },
+  'multiflora':      { c: '#7b3a0d', em: '#3a1503', ei: 0.5,  op: 0.88,  rough: 0.06, cc: 1.0, glow: 0.45, gc: [1.0, 0.55, 0.12], cloud: 0, visc: 0 },
+  'mustard':         { c: '#e6cc8e', em: '#6a5320', ei: 0.22, op: 0.99,  rough: 0.42, cc: 0.4, glow: 0.08, gc: [1.0, 0.92, 0.65], cloud: 1, visc: 1 },
+  'kashmiri-acacia': { c: '#e2a53a', em: '#a0560a', ei: 0.4,  op: 0.74,  rough: 0.04, cc: 1.0, glow: 0.65, gc: [1.0, 0.7, 0.2],   cloud: 0, visc: 0 },
+  'ajwain':          { c: '#b5650f', em: '#6e2c03', ei: 0.4,  op: 0.85,  rough: 0.06, cc: 1.0, glow: 0.5,  gc: [1.0, 0.58, 0.12], cloud: 0, visc: 0 },
+  'jamun':           { c: '#5a210a', em: '#2a0c02', ei: 0.5,  op: 0.92,  rough: 0.07, cc: 1.0, glow: 0.32, gc: [1.0, 0.45, 0.15], cloud: 0, visc: 0 },
 };
 
 const JAR_URL = 'assets/3d/Multiflora_1kg_jar.glb';
@@ -185,9 +185,8 @@ async function init() {
     ior: 1.5,
     specularIntensity: 1,
     clearcoat: 1,
-    clearcoatRoughness: 0.03,
-    envMapIntensity: 0.9,
-    
+    clearcoatRoughness: 0.02,
+    envMapIntensity: 1.7,             // strong white reflections down the sides, like the simulated honey
   });
 
   const glowU = { uGlowAmt: { value: 0.45 }, uGlowCol: { value: new THREE.Color(1, 0.55, 0.12) } };
@@ -197,7 +196,8 @@ async function init() {
       .replace('#include <common>', '#include <common>\nuniform float uGlowAmt; uniform vec3 uGlowCol;')
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       float rim = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
-      totalEmissiveRadiance += uGlowCol * (0.03 + pow(rim, 2.0) * uGlowAmt);`);
+      float under = clamp(-normalize(normal).y, 0.0, 1.0);
+      totalEmissiveRadiance += uGlowCol * (0.03 + pow(rim, 1.6) * uGlowAmt + pow(under, 2.0) * uGlowAmt * 0.6);`);
   };
   // ---- flowing honey surface: shared wave + meniscus height field (surface-local metres) ----
   const SURF_HALF = HONEY_HALF + GLASS_WALL;
@@ -627,6 +627,23 @@ async function init() {
   drop.renderOrder = strand.renderOrder = 2;
   scene.add(drop, strand, stub);
 
+  // ---- simulated honey drip: frames rendered from a Blender viscous fluid simulation ----
+  let drip = null;
+  if (HAS_INTRO) {
+    fetch('assets/honey/drip.json').then((r) => (r.ok ? r.json() : null)).then((mf) => {
+      if (!mf) return;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false }));
+      sp.visible = false; sp.renderOrder = 2; sp.center.set(mf.anchor[0], mf.anchor[1]);
+      scene.add(sp);
+      const texs = new Array(mf.n).fill(null);
+      const ld = new THREE.TextureLoader();
+      for (let i = 0; i < mf.n; i++) {
+        ld.load(`assets/honey/${mf.prefix}${String(i).padStart(3, '0')}.webp`, (tx) => { tx.colorSpace = THREE.SRGBColorSpace; texs[i] = tx; });
+      }
+      drip = { mf, sp, texs, tip: new THREE.Vector3(...mf.tip), shown: -1 };
+    }).catch(() => {});
+  }
+
   // ---------- layout helpers ----------
   let vw = window.innerWidth;
   let vh = window.innerHeight;
@@ -824,10 +841,17 @@ async function init() {
     lastPos.copy(p); lastVel.set(vx, vy); lastAngle = angle;
     const worldH = s * size.y;
     // drive: sideways acceleration tips the surface; spinning adds a little slosh
-    const drive = THREE.MathUtils.clamp(-ax / worldH * 0.03 + spin * 0.035, -3, 3);
+    // how thick the current honey is (mustard is creamy and hardly moves)
+    const visc = (() => {
+      const a = HV[inIntro ? 0 : seg].visc, b2 = HV[inIntro ? 0 : seg + 1].visc;
+      return a + (b2 - a) * (inIntro ? 0 : THREE.MathUtils.smoothstep(e, 0.3, 0.7));
+    })();
+    const fluid = 1 - 0.85 * visc;
+    const drive = THREE.MathUtils.clamp((-ax / worldH * 0.03 + spin * 0.035) * fluid, -3, 3);
     const driveZ = THREE.MathUtils.clamp(ay / worldH * 0.015, -3, 3);
-    tiltV.x += (-60 * tilt.x - 5.5 * tiltV.x + drive) * dt;
-    tiltV.y += (-60 * tilt.y - 5.5 * tiltV.y + driveZ) * dt;
+    const damp = 5.5 + 20 * visc;
+    tiltV.x += (-60 * tilt.x - damp * tiltV.x + drive) * dt;
+    tiltV.y += (-60 * tilt.y - damp * tiltV.y + driveZ * fluid) * dt;
     tilt.x = THREE.MathUtils.clamp(tilt.x + tiltV.x * dt, -0.22, 0.22);
     tilt.y = THREE.MathUtils.clamp(tilt.y + tiltV.y * dt, -0.22, 0.22);
 
@@ -841,7 +865,7 @@ async function init() {
     surface.updateMatrixWorld(true);
     waveU.uSurfInv.value.copy(surface.matrixWorld).invert();
     waveU.uTime.value = now / 1000;
-    waveU.uSlosh.value = Math.min(1, Math.abs(tilt.x) * 3.5 + Math.abs(tilt.y) * 3.5 + Math.abs(tiltV.x) * 0.4 + Math.abs(tiltV.y) * 0.4);
+    waveU.uSlosh.value = fluid * Math.min(1, Math.abs(tilt.x) * 3.5 + Math.abs(tilt.y) * 3.5 + Math.abs(tiltV.x) * 0.4 + Math.abs(tiltV.y) * 0.4);
     shimmerMat.uniforms.uAmt.value = Math.min(1, 0.15 + Math.abs(tilt.x) * 4 + Math.abs(tilt.y) * 4 + Math.abs(tiltV.x) * 0.5);
 
     // ---- bubbles drift upward and wiggle; reset at the bottom ----
@@ -944,7 +968,34 @@ async function init() {
       const d = clamp01((tI - 0.03) / 0.42);
       const R = s * 0.02;                       // droplet scale (model is 1 unit tall)
       drop.visible = strand.visible = stub.visible = false;
-      if (inIntro && showComb) {
+      if (drip) drip.sp.visible = false;
+      if (drip && inIntro && showComb) {
+        // scroll scrubs the simulated frames forward and backward; once the drop has broken off,
+        // a live drop carries on from where the frames leave it down into the jar's mouth
+        const mf = drip.mf, sp = drip.sp;
+        const fr = clamp01(d / mf.end);
+        let fi = Math.round(fr * (mf.n - 1));
+        let k = 0;
+        while (!drip.texs[fi] && k < mf.n) { k++; fi = Math.max(0, Math.round(fr * (mf.n - 1)) - k); }
+        if (drip.texs[fi]) {
+          if (drip.shown !== fi) { sp.material.map = drip.texs[fi]; sp.material.needsUpdate = true; drip.shown = fi; }
+          sp.visible = true;
+          const wx = mf.size[0] * comb.scale.x, wy = mf.size[1] * comb.scale.y;
+          sp.scale.set(wx, wy, 1);
+          sp.position.copy(comb.localToWorld(tmpV1.copy(drip.tip)));
+          if (d > mf.end && d < 1 && mf.release) {
+            const f = (d - mf.end) / (1 - mf.end);
+            const rx = sp.position.x + (mf.release[0] - mf.anchor[0]) * wx;
+            const ry = sp.position.y + (mf.release[1] - mf.anchor[1]) * wy;
+            drop.visible = true;
+            const Rr = R * (mf.dropScale || 1);
+            drop.scale.set(Rr, Rr * (1.4 - 0.3 * f), Rr);
+            drop.position.set(rx + (mouth.x - rx) * f * f, ry + (mouth.y - ry) * f * f, sp.position.z + (mouth.z - sp.position.z) * f * f);
+          }
+          if (d >= 1 && !landed) { landed = true; tiltV.x += 1.6; tiltV.y += 0.7; }
+          if (d < 0.98) landed = false;
+        }
+      } else if (inIntro && showComb) {
         const span = tip.y - mouth.y;
         const BREAK = 0.6;
         stub.visible = true;
