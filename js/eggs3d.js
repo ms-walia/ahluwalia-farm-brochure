@@ -307,8 +307,8 @@ function init() {
       c.open += (c.target - c.open) * Math.min(1, dt * 5);
       pk.k += (c.target - pk.k) * Math.min(1, dt * 4);
       const k = ease(Math.min(1, Math.max(0, pk.k)));
-      // scroll: flat while the section comes in, tilting up as you scroll further
-      const lift = ease(scrollLift());
+      // scroll: tilted up (labels facing you) as the section comes in, lying flat once it's centred
+      const lift = 1 - ease(scrollLift());   // tilted up as the section arrives, settling flat as you scroll on
       const R = { p: pk.flat.p.map((v, i) => lerp(v, pk.up.p[i], lift)), r: pk.flat.r.map((v, i) => lerp(v, pk.up.r[i], lift)) };
       const idle = Math.sin(t * 0.8 + pk.flat.p[0] * 20) * 0.006 * (1 - k) * lift;
       pk.holder.position.set(lerp(R.p[0], OPEN.p[0], k), lerp(R.p[1], OPEN.p[1], k) + idle, lerp(R.p[2], OPEN.p[2], k));
