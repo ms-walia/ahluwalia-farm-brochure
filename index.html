@@ -34,7 +34,7 @@
       <ul class="nav__menu" id="nav-menu">
         <li><a href="#about">About</a></li>
         <li><a href="#jar-journey">Honey</a></li>
-        <li><a href="#poultry">Eggs</a></li>
+        <li><a href="#egg-cartons">Eggs</a></li>
         <li><a href="#standards">Standards</a></li>
         <li><a href="#gallery">Gallery</a></li>
         <li><a href="#contact">Contact</a></li>
@@ -115,6 +115,7 @@
               <li>Rich floral aroma</li>
               <li>Balanced sweetness</li>
             </ul>
+            <a class="buy-now" href="shop.html?v=multiflora">Buy Now <span aria-hidden="true">→</span></a>
           </div>
           <div class="journey-slot" id="jar-slot-0" aria-hidden="true">
             <img class="journey-slot__fallback" src="assets/multiflora-front.png" alt="" loading="lazy">
@@ -136,6 +137,7 @@
               <li>Pleasant floral aroma</li>
               <li>Naturally rich sweetness</li>
             </ul>
+            <a class="buy-now" href="shop.html?v=mustard">Buy Now <span aria-hidden="true">→</span></a>
           </div>
         </div>
         <div class="journey-row journey-row--right" data-variety="kashmiri-acacia">
@@ -150,6 +152,7 @@
               <li>Light golden colour</li>
               <li>Smooth, mild taste</li>
             </ul>
+            <a class="buy-now" href="shop.html?v=kashmiri-acacia">Buy Now <span aria-hidden="true">→</span></a>
           </div>
           <div class="journey-slot" id="jar-slot-2" aria-hidden="true">
             <img class="journey-slot__fallback" src="assets/kashmiri-acacia-front.png" alt="" loading="lazy">
@@ -170,6 +173,7 @@
               <li>Warm herbal note</li>
               <li>Naturally sweet</li>
             </ul>
+            <a class="buy-now" href="shop.html?v=ajwain">Buy Now <span aria-hidden="true">→</span></a>
           </div>
         </div>
         <div class="journey-row journey-row--right" data-variety="jamun">
@@ -184,6 +188,7 @@
               <li>Deeper colour</li>
               <li>Rich, tangy flavour</li>
             </ul>
+            <a class="buy-now" href="shop.html?v=jamun">Buy Now <span aria-hidden="true">→</span></a>
           </div>
           <div class="journey-slot" id="jar-slot-4" aria-hidden="true">
             <img class="journey-slot__fallback" src="assets/honey-main.png" alt="" loading="lazy">
@@ -225,56 +230,47 @@
     </section>
 
     <!-- Egg cartons (3D) -->
-    <section class="section jar-journey egg-journey" id="egg-cartons" aria-label="Our egg packs">
+    <section class="section egg-shop" id="egg-cartons" aria-label="Our egg packs">
+      <div class="egg-shop__bg" aria-hidden="true"></div>
       <div class="container">
-        <div class="journey-row journey-row--right egg-row" data-pack="12">
-          <div class="journey-row__bg journey-row__bg--eggs" aria-hidden="true"></div>
-          <div class="journey-row__text reveal">
-            <span class="journey-row__count">Cage-Free Eggs · 01 / 03</span>
-            <span class="journey-row__kicker">12 Eggs</span>
-            <h3>Pack of 12</h3>
-            <p>Two neat rows of six light-brown, cage-free eggs, sealed with our Ahluwalia Farm wrap. Tap the carton to tear the seal and open it.</p>
+        <div class="egg-shop__top">
+          <div class="egg-shop__stage" id="egg-stage" aria-label="3D egg cartons: tap one to open it, swipe to turn" role="img"></div>
+          <div class="egg-shop__text reveal">
+            <span class="section-label">Cage-Free Eggs</span>
+            <h2 class="section-title">Farm-Fresh Brown Eggs</h2>
+            <p>Light-brown, cage-free eggs from BV 380 hens on KVK-trained farms around Amritsar, packed in clear cartons so you can see every egg before you buy.</p>
             <ul class="journey-row__facts">
-              <li>2 × 6 tray</li>
-              <li>Sealed wrap label</li>
-              <li>Everyday pack</li>
+              <li>Grown cage free</li><li>High-quality protein</li><li>Vitamin D &amp; calcium</li><li>Best before 21 days</li>
             </ul>
-          </div>
-          <div class="journey-slot egg-slot" id="egg-slot-12" aria-label="3D egg carton, tap to open" role="img"></div>
-          <p class="journey-hint" aria-hidden="true">Tap the carton to open it · Swipe to turn it · Scroll for the next pack</p>
-        </div>
-        <div class="journey-row journey-row--left egg-row" data-pack="25">
-          <div class="journey-row__bg journey-row__bg--eggs" aria-hidden="true"></div>
-          <div class="journey-slot egg-slot" id="egg-slot-25" aria-label="3D egg carton, tap to open" role="img"></div>
-          <div class="journey-row__text reveal">
-            <span class="journey-row__count">Cage-Free Eggs · 02 / 03</span>
-            <span class="journey-row__kicker">25 Eggs</span>
-            <h3>Pack of 25</h3>
-            <p>A square five-by-five tray for bigger kitchens. Clear on every side, so you can see each egg before you buy.</p>
-            <ul class="journey-row__facts">
-              <li>5 × 5 tray</li>
-              <li>Clear clamshell</li>
-              <li>Family pack</li>
-            </ul>
+            <p class="egg-shop__hint">Tap a carton to open it · Swipe to turn it</p>
           </div>
         </div>
-        <div class="journey-row journey-row--right egg-row" data-pack="30">
-          <div class="journey-row__bg journey-row__bg--eggs" aria-hidden="true"></div>
-          <div class="journey-row__text reveal">
-            <span class="journey-row__count">Cage-Free Eggs · 03 / 03</span>
-            <span class="journey-row__kicker">30 Eggs</span>
-            <h3>Pack of 30</h3>
-            <p>Our largest tray: five rows of six fresh eggs from KVK-trained farms around Amritsar.</p>
-            <ul class="journey-row__facts">
-              <li>5 × 6 tray</li>
-              <li>Clear clamshell</li>
-              <li>Bulk pack</li>
-            </ul>
-          </div>
-          <div class="journey-slot egg-slot" id="egg-slot-30" aria-label="3D egg carton, tap to open" role="img"></div>
+        <div class="egg-packs">
+          <article class="egg-pack">
+            <div class="egg-pack__num">12</div>
+            <div class="egg-pack__type">Everyday Pack</div>
+            <p>Two rows of six, sealed with our Ahluwalia Farm wrap label.</p>
+            <div class="egg-pack__price">₹239</div>
+            <button class="egg-pack__btn" data-add='{"id":"eggs-12","name":"Cage-Free Brown Eggs","size":"12 Pack","price":239}'>Add to cart</button>
+          </article>
+          <article class="egg-pack">
+            <div class="egg-pack__num">25</div>
+            <div class="egg-pack__type">Family Pack</div>
+            <p>A square five-by-five tray for bigger kitchens.</p>
+            <div class="egg-pack__price">₹449</div>
+            <button class="egg-pack__btn" data-add='{"id":"eggs-25","name":"Cage-Free Brown Eggs","size":"25 Pack","price":449}'>Add to cart</button>
+          </article>
+          <article class="egg-pack">
+            <div class="egg-pack__num">30</div>
+            <div class="egg-pack__type">Bulk Pack</div>
+            <p>Our largest tray — five rows of six. Best value per egg.</p>
+            <div class="egg-pack__price">₹499</div>
+            <button class="egg-pack__btn" data-add='{"id":"eggs-30","name":"Cage-Free Brown Eggs","size":"30 Pack","price":499}'>Add to cart</button>
+          </article>
         </div>
+        <p class="jar-journey__credit egg-shop__credit">Background photo: <a href="https://unsplash.com/photos/five-brown-hens-on-ground-beside-fence-8wWpDF4Av-Y" target="_blank" rel="noopener">Ben Moreland</a> on Unsplash</p>
       </div>
-      <canvas class="jar-canvas" id="egg-canvas" aria-hidden="true"></canvas>
+      <canvas class="egg-canvas" id="egg-canvas" aria-hidden="true"></canvas>
     </section>
 
     <!-- Why Choose Us -->
@@ -640,5 +636,6 @@
   </script>
   <script type="module" src="js/jar3d.js"></script>
   <script type="module" src="js/eggs3d.js"></script>
+  <script type="module" src="js/cart.js"></script>
 </body>
 </html>

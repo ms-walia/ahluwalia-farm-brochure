@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Buy raw honey from Ahluwalia Farm in 250g, 500g and 1kg jars.">
+  <title>Buy Honey | Ahluwalia Farm</title>
+  <link rel="icon" href="assets/logo.jpeg" type="image/jpeg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    body { background: #1f190f; color: var(--cream); }
+    .shop-top { display: flex; align-items: center; justify-content: space-between; padding: 18px clamp(16px, 4vw, 48px); }
+    .shop-top a { color: var(--cream); text-decoration: none; display: inline-flex; align-items: center; gap: 10px; font-weight: 500; }
+    .shop-top img { width: 46px; height: 46px; border-radius: 50%; }
+    .shop-back { opacity: .8 }
+    .shop-hero { text-align: center; padding: clamp(24px, 6vw, 64px) 16px 12px; }
+    .shop-hero .kicker { color: var(--gold-light); letter-spacing: .2em; text-transform: uppercase; font-size: .75rem; font-weight: 600; }
+    .shop-hero h1 { font-family: var(--font-serif); font-size: clamp(2.4rem, 6vw, 4rem); font-weight: 600; margin: .4rem 0 .6rem; color: var(--cream); }
+    .shop-hero p { max-width: 620px; margin: 0 auto; color: rgba(250,248,242,.8); }
+    .sizes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(14px, 2.5vw, 28px); max-width: 1100px; margin: 36px auto 40px; padding: 0 16px; }
+    .size-card { background: #faf8f2; color: #2b2b2b; border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 18px 40px rgba(0,0,0,.35); position: relative; }
+    .size-card__img { aspect-ratio: 1 / 1; display: grid; place-items: center; padding: 22px; background: radial-gradient(70% 60% at 50% 40%, #fff6dd, #f1e6c6); }
+    .size-card__img img { max-height: 100%; max-width: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 22px rgba(80,50,0,.18); }
+    .size-card__img .jarlike { transition: transform .3s; }
+    .size-card[data-size="250g"] .jarlike { transform: scale(.68); }
+    .size-card[data-size="500g"] .jarlike { transform: scale(.82); }
+    .size-card__body { padding: 18px 20px 22px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+    .size-card__size { font-family: var(--font-serif); font-size: 2rem; font-weight: 700; color: var(--forest-green); line-height: 1; }
+    .size-card__name { font-size: .9rem; color: #6d6455; }
+    .size-card__price { font-size: 1.5rem; font-weight: 600; margin-top: 4px; }
+    .size-card__price small { font-size: .8rem; color: #8a8070; font-weight: 400; margin-left: 6px; }
+    .size-card__btn { margin-top: auto; border: 0; border-radius: 999px; padding: 13px 18px; background: var(--forest-green); color: #fff; font: 600 1rem var(--font-sans, Outfit, sans-serif); cursor: pointer; }
+    .size-card__btn:hover { filter: brightness(1.1); }
+    .size-card__tag { position: absolute; top: 14px; left: 14px; background: var(--honey-gold); color: #1d1608; font-size: .72rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; letter-spacing: .04em; }
+    .shop-others { text-align: center; padding: 10px 16px 60px; }
+    .shop-others h2 { font-family: var(--font-serif); font-size: 1.6rem; margin-bottom: 14px; color: var(--cream); }
+    .shop-others a { display: inline-block; margin: 6px; padding: 9px 16px; border-radius: 999px; border: 1px solid rgba(232,197,71,.45); color: var(--gold-light); text-decoration: none; font-size: .9rem; }
+    .shop-others a[aria-current] { background: var(--gold-light); color: #1d1608; }
+    @media (max-width: 760px) {
+      .sizes { grid-template-columns: 1fr; max-width: 420px; }
+      .size-card { flex-direction: row; }
+      .size-card__img { width: 42%; aspect-ratio: auto; padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="shop-top">
+    <a href="index.html#jar-journey"><img src="assets/logo.jpeg" alt="">Ahluwalia Farm</a>
+    <a class="shop-back" href="index.html#jar-journey">← Back to honey</a>
+  </header>
+  <main>
+    <section class="shop-hero">
+      <span class="kicker" id="shop-region"></span>
+      <h1 id="shop-title">Honey</h1>
+      <p>Raw &amp; unprocessed, in three jar sizes. Add to your basket and send the order to us on WhatsApp — we'll confirm delivery.</p>
+    </section>
+    <section class="sizes" id="sizes" aria-label="Jar sizes"></section>
+    <section class="shop-others">
+      <h2>Other honeys</h2>
+      <nav id="others"></nav>
+    </section>
+  </main>
+  <script type="module">
+    import { HONEY, inr } from './js/cart.js';
+    const key = new URLSearchParams(location.search).get('v') || 'multiflora';
+    const h = HONEY[key] || HONEY.multiflora;
+    document.title = `Buy ${h.name} | Ahluwalia Farm`;
+    document.getElementById('shop-title').textContent = h.name;
+    document.getElementById('shop-region').textContent = h.region;
+    const img = `assets/shop/${HONEY[key] ? key : 'multiflora'}-label.jpg`;
+    document.getElementById('sizes').innerHTML = Object.entries(h.prices).map(([size, price], i) => `
+      <article class="size-card" data-size="${size}">
+        ${i === 2 ? '<span class="size-card__tag">BEST VALUE</span>' : ''}
+        <div class="size-card__img"><img class="jarlike" src="${img}" alt="${h.name} label"></div>
+        <div class="size-card__body">
+          <div class="size-card__size">${size}</div>
+          <div class="size-card__name">${h.name}</div>
+          <div class="size-card__price">${inr(price)}</div>
+          <button class="size-card__btn" data-add='${JSON.stringify({ id: key + '-' + size, name: h.name, size, price })}'>Add to cart</button>
+        </div>
+      </article>`).join('');
+    document.getElementById('others').innerHTML = Object.entries(HONEY).map(([k, v]) =>
+      `<a href="shop.html?v=${k}" ${k === key ? 'aria-current="page"' : ''}>${v.name.replace(' Honey', '')}</a>`).join('');
+  </script>
+</body>
+</html>

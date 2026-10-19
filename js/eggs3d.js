@@ -11,10 +11,11 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const section = document.getElementById('egg-cartons');
 const canvas = document.getElementById('egg-canvas');
+const stage = document.getElementById('egg-stage');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const NOSMOOTH = new URLSearchParams(location.search).has('nosmooth');
 
-if (section && canvas && !reduceMotion) {
+if (section && canvas && stage && !reduceMotion) {
   try { init(); } catch (err) { console.warn('[eggs3d] disabled:', err); }
 }
 
@@ -28,9 +29,6 @@ function init() {
   scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(renderer), 0.04).texture;
   const key = new THREE.DirectionalLight(0xfff1dc, 1.3); key.position.set(-2, 4, 4); scene.add(key);
   const rim = new THREE.DirectionalLight(0xffe0b0, 0.7); rim.position.set(3, 2, -3); scene.add(rim);
-  const FOV = 28, DIST = 10;
-  const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 100);
-  camera.position.set(0, 0, DIST);
 
   const texLoader = new THREE.TextureLoader();
   const tex = (url) => { const t = texLoader.load(url); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
@@ -198,130 +196,119 @@ function init() {
     return { fringes: [fLidF, fBaseF, fLidB, fBaseB], lidBand, baseBand };
   }
 
+
+  // ---------- the display: 12 in front, 30 standing behind, 25 leaning on the right ----------
+  const stickerTex25 = stickerTex;   // (swap in the 25-pack sticker when it arrives)
+  void stickerTex25;
+  const display = new THREE.Group(); scene.add(display);
   const packs = [
-    { key: '12', carton: buildCarton(2, 6, { wrap: true }) },
-    { key: '25', carton: buildCarton(5, 5, { sticker: true }) },
-    { key: '30', carton: buildCarton(5, 6, { sticker: true }) },
+    { key: '30', carton: buildCarton(5, 6, { sticker: true }), rest: { p: [-0.02, 0.07, -0.16], r: [1.02, 0.08, 0] } },
+    { key: '25', carton: buildCarton(5, 5, { sticker: true }), rest: { p: [0.235, 0.0, -0.02], r: [0.92, -0.55, -0.12] } },
+    { key: '12', carton: buildCarton(2, 6, { wrap: true }),    rest: { p: [-0.05, -0.12, 0.1], r: [0.62, 0.12, 0.02] } },
   ];
-  for (const p of packs) {
-    p.slot = document.getElementById(`egg-slot-${p.key}`);
-    p.row = p.slot && p.slot.closest('.journey-row');
-    p.pivot = new THREE.Group(); p.pivot.add(p.carton.g); scene.add(p.pivot);
-    p.user = 0; p.userV = 0; p.rest = p.row && p.row.classList.contains('journey-row--left') ? 0.35 : -0.35;
-    p.away = true;
+  // "open" pose: lid up, tray turned straight towards the viewer, brought forward
+  const OPEN = { p: [0.02, -0.04, 0.34], r: [1.1, 0, 0] };
+  for (const pk of packs) {
+    pk.holder = new THREE.Group(); pk.spin = new THREE.Group();
+    pk.holder.add(pk.spin); pk.spin.add(pk.carton.g); display.add(pk.holder);
+    pk.k = 0; pk.user = 0; pk.userV = 0;
+    pk.carton.g.traverse((o) => { o.userData.pack = pk; });
   }
   section.classList.add('is-3d');
 
-  // ---------- layout ----------
-  let vw = innerWidth, vh = innerHeight;
-  function resize() { vw = innerWidth; vh = innerHeight; renderer.setSize(vw, vh, false); camera.aspect = vw / vh; camera.updateProjectionMatrix(); }
-  const unitsPerPx = () => (2 * DIST * Math.tan(THREE.MathUtils.degToRad(FOV / 2))) / vh;
+  // ---------- canvas = the stage area ----------
+  stage.appendChild(canvas);
+  canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;';
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 20);
+  camera.position.set(0.03, 0.42, 1.25); camera.lookAt(0.03, -0.01, 0);
+  function resize() {
+    const r = stage.getBoundingClientRect();
+    renderer.setSize(r.width, r.height, false); camera.aspect = r.width / Math.max(1, r.height);
+    // keep the whole group in view on narrow screens
+    camera.position.setLength(camera.aspect < 1 ? 1.25 / Math.max(0.62, camera.aspect) : 1.25);
+    camera.updateProjectionMatrix();
+  }
   addEventListener('resize', resize); resize();
 
-  // ---------- tap to open/close, swipe to turn ----------
-  for (const p of packs) {
-    if (!p.slot) continue;
-    let down = null, lastX = 0, lastT = 0;
-    p.slot.addEventListener('pointerdown', (ev) => {
-      down = { x: ev.clientX, y: ev.clientY, moved: false }; lastX = ev.clientX; lastT = performance.now(); p.userV = 0;
-      if (ev.pointerType === 'mouse') ev.preventDefault();
-      try { p.slot.setPointerCapture(ev.pointerId); } catch (_) { /* ignore */ }
-    });
-    p.slot.addEventListener('pointermove', (ev) => {
-      if (!down) return;
-      if (Math.abs(ev.clientX - down.x) > 6) down.moved = true;
-      const now = performance.now(), d = (ev.clientX - lastX) * 0.012;
-      p.user += d; p.userV = THREE.MathUtils.clamp(d / Math.max(0.008, (now - lastT) / 1000), -12, 12);
-      lastX = ev.clientX; lastT = now;
-    });
-    const up = (ev) => {
-      if (!down) return;
-      if (!down.moved && ev.type === 'pointerup') {
-        const c = p.carton;
-        c.target = c.target ? 0 : 1;
-        if (c.target && c.wrap) c.torn = true;        // the seal breaks the first time it opens
-      }
-      if (performance.now() - lastT > 90) p.userV = 0;
-      down = null;
-    };
-    p.slot.addEventListener('pointerup', up);
-    p.slot.addEventListener('pointercancel', up);
+  // ---------- tap a carton: open + face the viewer / close + tilt back; swipe: turn it ----------
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  function pick(ev) {
+    const r = stage.getBoundingClientRect();
+    ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const hit = ray.intersectObjects(packs.map((p) => p.carton.g), true)[0];
+    return hit ? hit.object.userData.pack : null;
   }
+  let down = null, lastX = 0, lastT = 0;
+  stage.addEventListener('pointerdown', (ev) => {
+    const pk = pick(ev) || packs.find((p) => p.carton.target) || null;
+    down = { x: ev.clientX, moved: false, pk }; lastX = ev.clientX; lastT = performance.now();
+    if (pk) pk.userV = 0;
+    if (ev.pointerType === 'mouse') ev.preventDefault();
+    try { stage.setPointerCapture(ev.pointerId); } catch (_) { /* ignore */ }
+  });
+  stage.addEventListener('pointermove', (ev) => {
+    if (!down || !down.pk) return;
+    if (Math.abs(ev.clientX - down.x) > 6) down.moved = true;
+    if (!down.moved) return;
+    const now = performance.now(), d = (ev.clientX - lastX) * 0.012;
+    down.pk.user += d; down.pk.userV = THREE.MathUtils.clamp(d / Math.max(0.008, (now - lastT) / 1000), -12, 12);
+    lastX = ev.clientX; lastT = now;
+  });
+  const up = (ev) => {
+    if (!down) return;
+    const pk = down.pk;
+    if (pk && !down.moved && ev.type === 'pointerup') {
+      const opening = !pk.carton.target;
+      for (const o of packs) if (o !== pk && o.carton.target) { o.carton.target = 0; }   // only one open at a time
+      pk.carton.target = opening ? 1 : 0;
+      if (opening && pk.carton.wrap) pk.carton.torn = true;      // seal breaks on first open, stays torn
+      if (!opening) pk.user = 0;
+    }
+    if (pk && performance.now() - lastT > 90) pk.userV = 0;
+    down = null;
+  };
+  stage.addEventListener('pointerup', up);
+  stage.addEventListener('pointercancel', up);
 
-  // ---------- scroll assist between the pack cards (same feel as the honey jars) ----------
-  const rowsAll = packs.map((p) => p.row).filter(Boolean);
-  let touching = false, snapping = false, lastY = scrollY, dir = 0, snapTimer = 0, snapEnd = 0;
-  function rawProgress() {
-    const tops = rowsAll.map((r) => r.getBoundingClientRect().top);
-    if (tops[0] >= 0) return -tops[0] / Math.max(1, tops[1] - tops[0]);
-    for (let i = 0; i < tops.length - 1; i++) if (tops[i + 1] > 0) return i + -tops[i] / Math.max(1, tops[i + 1] - tops[i]);
-    return tops.length - 1 + -tops[tops.length - 1] / Math.max(1, tops[1] - tops[0]);
-  }
-  function maybeSnap() {
-    if (touching || snapping || NOSMOOTH) return;
-    const p = rawProgress();
-    if (p <= 0.003 || p >= rowsAll.length - 1.003) return;
-    const f = p - Math.floor(p);
-    if (f <= 0.003 || f >= 0.997) return;
-    const next = dir > 0 ? (f > 0.08 ? Math.ceil(p) : Math.floor(p)) : (f < 0.92 ? Math.floor(p) : Math.ceil(p));
-    snapping = true;
-    scrollTo({ top: rowsAll[next].getBoundingClientRect().top + scrollY, behavior: 'smooth' });
-    clearTimeout(snapEnd); snapEnd = setTimeout(() => { snapping = false; }, 1200);
-  }
-  const armSnap = () => { clearTimeout(snapTimer); snapTimer = setTimeout(maybeSnap, matchMedia('(pointer: coarse)').matches ? 150 : 220); };
-  addEventListener('touchstart', () => { touching = true; snapping = false; }, { passive: true });
-  addEventListener('touchend', () => { touching = false; armSnap(); }, { passive: true });
-  addEventListener('wheel', () => { snapping = false; }, { passive: true });
-  addEventListener('scroll', () => {
-    const y = scrollY; if (y !== lastY) dir = Math.sign(y - lastY); lastY = y;
-    if (!snapping && inView) armSnap();
-  }, { passive: true });
-
-  // ---------- frame loop ----------
-  let inView = false, raf = 0, lastT = performance.now();
+  // ---------- loop ----------
+  let inView = false, raf = 0, lastF = performance.now();
   const io = new IntersectionObserver((en) => {
-    inView = en[0].isIntersecting; section.classList.toggle('in-view', inView);
-    if (inView && !raf) raf = requestAnimationFrame(frame);
+    const was = inView; inView = en[0].isIntersecting;
+    if (!inView && was) {
+      // leaving the section resets everything: lids shut, seal whole again
+      for (const pk of packs) { pk.carton.target = 0; pk.carton.open = 0; pk.carton.torn = false; pk.user = 0; pk.userV = 0; pk.k = 0; }
+    }
+    if (inView && !raf) { resize(); raf = requestAnimationFrame(frame); }
   });
   io.observe(section);
-  const easeIO = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const lerp = (a, b, t) => a + (b - a) * t;
 
   function frame() {
     raf = 0;
-    const now = performance.now(), dt = Math.min(0.05, (now - lastT) / 1000 || 0.016); lastT = now;
-    const u = unitsPerPx();
-    for (const p of packs) {
-      if (!p.slot) continue;
-      const r = p.slot.getBoundingClientRect();
-      const rowR = p.row.getBoundingClientRect();
-      // how far this card is from filling the screen: 0 = in place, ±1 = a whole screen away
-      const off = THREE.MathUtils.clamp(rowR.top / vh, -1.2, 1.2);
-      const visible = rowR.bottom > -vh * 0.2 && rowR.top < vh * 1.2;
-      p.pivot.visible = visible;
-      if (!visible) continue;
-      // leaving the card resets it: lid shut, seal whole again, front-facing
-      const away = Math.abs(off) > 0.6;
-      if (away && !p.away) { p.carton.target = 0; p.carton.open = 0; p.carton.torn = false; p.user = 0; p.userV = 0; }
-      p.away = away;
-      const c = p.carton;
-      // size the carton to its slot
-      const fit = Math.min((r.width * 0.95 * u) / c.W, (r.height * 0.78 * u) / c.D);
-      p.pivot.position.set((r.left + r.width / 2 - vw / 2) * u, -(r.top + r.height / 2 - vh / 2) * u, 0);
-      p.pivot.scale.setScalar(fit);
-      // spin in as the card arrives (a full turn spread over the approach), plus the visitor's own turn
-      if (p.userV && Math.abs(p.userV) > 0.02) { p.user += p.userV * dt; p.userV *= Math.exp(-3 * dt); } else p.userV = 0;
-      const arrive = easeIO(1 - Math.min(1, Math.abs(off)));
-      p.pivot.rotation.set(0.55 + (1 - arrive) * 0.25, p.rest + p.user + (1 - arrive) * Math.PI * 2 * Math.sign(off || 1), 0);
-      // lid swing
+    const now = performance.now(), dt = Math.min(0.05, (now - lastF) / 1000 || 0.016); lastF = now;
+    const t = now / 1000;
+    for (const pk of packs) {
+      const c = pk.carton;
       c.open += (c.target - c.open) * Math.min(1, dt * 5);
-      c.hinge.rotation.x = -easeIO(c.open) * 1.95;
+      pk.k += (c.target - pk.k) * Math.min(1, dt * 4);
+      const k = ease(Math.min(1, Math.max(0, pk.k)));
+      const R = pk.rest, idle = Math.sin(t * 0.8 + pk.rest.p[0] * 20) * 0.01 * (1 - k);
+      pk.holder.position.set(lerp(R.p[0], OPEN.p[0], k), lerp(R.p[1], OPEN.p[1], k) + idle, lerp(R.p[2], OPEN.p[2], k));
+      pk.holder.rotation.set(lerp(R.r[0], OPEN.r[0], k), lerp(R.r[1], OPEN.r[1], k), lerp(R.r[2], OPEN.r[2], k));
+      // the other cartons step back a little while one is open
+      const other = packs.some((o) => o !== pk && o.k > 0.05) ? Math.max(...packs.filter((o) => o !== pk).map((o) => o.k)) : 0;
+      pk.holder.scale.setScalar(1 - 0.25 * other);
+      if (pk.userV && Math.abs(pk.userV) > 0.02) { pk.user += pk.userV * dt; pk.userV *= Math.exp(-3 * dt); } else pk.userV = 0;
+      pk.spin.rotation.y = pk.user;     // turn about the carton's own up axis
+      c.hinge.rotation.x = -ease(c.open) * 1.95;
       if (c.wrap) {
-        // once torn, the two halves of the label no longer meet: a ragged gap stays along the seam
         c.wrap.fringes.forEach((f) => { f.visible = c.torn; });
         c.wrap.lidBand.position.y = c.torn ? 0.004 : 0;
         c.wrap.baseBand.position.y = c.torn ? -0.003 : 0;
-        c.wrap.fringes[0].position.y = c.torn ? 0.004 : 0; c.wrap.fringes[2].position.y = c.torn ? 0.004 : 0;
-        c.wrap.fringes[1].position.y = c.torn ? -0.003 : 0; c.wrap.fringes[3].position.y = c.torn ? -0.003 : 0;
+        c.wrap.fringes[0].position.y = c.wrap.fringes[2].position.y = c.torn ? 0.004 : 0;
+        c.wrap.fringes[1].position.y = c.wrap.fringes[3].position.y = c.torn ? -0.003 : 0;
       }
     }
     renderer.render(scene, camera);
