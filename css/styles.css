@@ -1622,3 +1622,7 @@ box-shadow: var(--shadow-sm);
   .journey-intro__inner .journey-row__text { justify-self: center; }
   .journey-intro__stage { padding-top: 14vh; }
 }
+/* intro is plain text for now (comb / drip / lid effects removed) */
+.jar-journey .journey-row.journey-intro { display: grid; grid-template-columns: 1fr; place-items: center; min-height: 100vh; min-height: 100svh; }
+.journey-intro__inner { position: static; height: auto; display: block; text-align: center; padding-top: var(--header-height, 80px); }
+.journey-intro__inner .journey-row__text { justify-self: center; margin: 0 auto; max-width: 560px; }
