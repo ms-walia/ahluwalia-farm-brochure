@@ -205,11 +205,11 @@ function init() {
     // flat: lying on the counter, staggered diagonally like the gallery photo (biggest at the back)
     // up:   tilted up so the label on top faces the viewer
     { key: '30', carton: buildCarton(5, 6, { sticker: true }),
-      flat: { p: [-0.14, -0.06, -0.3], r: [0, 0.32, 0] },  up: { p: [-0.13, 0.11, -0.2], r: [1.18, 0.12, 0] } },
+      flat: { p: [-0.14, -0.06, -0.3], r: [0, 0.32, 0] },  up: { p: [-0.13, 0.06, -0.26], r: [0.66, 0.14, 0] } },
     { key: '25', carton: buildCarton(5, 5, { sticker: true }),
-      flat: { p: [0.17, -0.06, -0.08], r: [0, 0.32, 0] },  up: { p: [0.2, 0.04, -0.06], r: [1.12, -0.22, 0] } },
+      flat: { p: [0.17, -0.06, -0.08], r: [0, 0.32, 0] },  up: { p: [0.19, 0.0, -0.08], r: [0.62, -0.2, 0] } },
     { key: '12', carton: buildCarton(2, 6, { wrap: true }),
-      flat: { p: [-0.08, -0.06, 0.18], r: [0, 0.32, 0] },  up: { p: [-0.06, -0.15, 0.14], r: [1.05, 0.1, 0] } },
+      flat: { p: [-0.08, -0.06, 0.18], r: [0, 0.32, 0] },  up: { p: [-0.06, -0.11, 0.16], r: [0.56, 0.1, 0] } },
   ];
   // "open" pose: lid up, tray turned straight towards the viewer, brought forward
   const OPEN = { p: [0.02, -0.04, 0.34], r: [1.1, 0, 0] };
@@ -225,12 +225,12 @@ function init() {
   stage.appendChild(canvas);
   canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;';
   const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 20);
-  camera.position.set(0.02, 0.36, 1.18); camera.lookAt(0.02, -0.02, -0.04);
+  camera.position.set(0.02, 0.27, 0.86); camera.lookAt(0.02, -0.03, -0.04);
   function resize() {
     const r = stage.getBoundingClientRect();
     renderer.setSize(r.width, r.height, false); camera.aspect = r.width / Math.max(1, r.height);
     // keep the whole group in view on narrow screens
-    camera.position.setLength(camera.aspect < 1 ? 1.25 / Math.max(0.62, camera.aspect) : 1.25);
+    camera.position.setLength(camera.aspect < 1 ? 0.98 / Math.max(0.62, camera.aspect) : 0.98);
     camera.updateProjectionMatrix();
   }
   addEventListener('resize', resize); resize();
