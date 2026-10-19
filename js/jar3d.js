@@ -256,7 +256,7 @@ async function init() {
       float band = smoothstep(0.010, 0.014, vGY) * (1.0 - smoothstep(0.094, 0.099, vGY));
       float boost = mix(1.0, 0.18, band);
       float neck = smoothstep(0.117, 0.119, vGY);          // soft frost so the neck doesn't vanish
-      diffuseColor.a = clamp(diffuseColor.a * mix(1.0, 0.4, band) + neck * 0.1 + (fr * 0.55 + dot(sp, vec3(0.3333)) * 0.9) * boost, 0.0, 0.9);
+      diffuseColor.a = clamp(diffuseColor.a * mix(1.0, 0.4, band) + (fr * 0.55 + dot(sp, vec3(0.3333)) * 0.9) * boost, 0.0, 0.9);
       #include <opaque_fragment>`);
   };
   glassMat.customProgramCacheKey = () => 'glassBand';
@@ -372,7 +372,7 @@ async function init() {
       threadMat.side = THREE.FrontSide;
       const thread = new THREE.Mesh(new THREE.TubeGeometry(new Helix(), 220, 0.00085, 8, false), threadMat);
       thread.renderOrder = 3;
-      capMesh.parent.add(thread);
+      void thread;   // (not added: it made the open neck look wider than the original)
     }
     capMesh.visible = false;
     void H;
